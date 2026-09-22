@@ -1,0 +1,4 @@
+dist
+
+# runtime ingest state, one per machine
+app-state

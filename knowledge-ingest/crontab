@@ -1,0 +1,2 @@
+# daily knowledge base ingest, evaluated in the container's TZ
+0 3 * * * node /app/dist/index.js

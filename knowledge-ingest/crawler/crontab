@@ -1,0 +1,2 @@
+# daily government source crawl, two hours ahead of the 3 AM knowledge-ingest run
+0 1 * * * node /app/dist/index.js

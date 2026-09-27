@@ -2,3 +2,6 @@ dist
 
 # runtime ingest state, one per machine
 app-state
+
+# runtime crawler state, one per machine
+crawler-state

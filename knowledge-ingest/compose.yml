@@ -18,3 +18,21 @@ services:
     volumes:
       - ./knowledge-base:/data/knowledge-base:ro
       - ./app-state:/data/state
+
+  # scheduled worker (see crawler/crontab) that turns government sources into markdown in
+  # knowledge-base/ ahead of the ingest run - the only service with write access to it
+  knowledge-crawler:
+    build:
+      context: ./crawler
+    restart: unless-stopped
+
+    environment:
+      - KNOWLEDGE_BASE_PATH=/data/knowledge-base
+      - CRAWLER_STATE_PATH=/data/state
+      - CRAWL_TIMEOUT_MINUTES=30
+      - TZ=America/New_York
+      - DOTENV_CONFIG_QUIET=true
+
+    volumes:
+      - ./knowledge-base:/data/knowledge-base
+      - ./crawler-state:/data/state

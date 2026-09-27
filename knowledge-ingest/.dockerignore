@@ -3,3 +3,5 @@ dist
 .env
 knowledge-base
 app-state
+crawler
+crawler-state

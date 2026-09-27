@@ -1,4 +1,129 @@
-I’d make this a **scheduled ingestion worker inside the existing `personal-web-app` Docker Compose project**, rather than creating another VM or HTTP API.
+# Knowledge ingest — status
+
+Original plan below is fully implemented and deployed. This section tracks what actually
+shipped, where it deviated from the plan, and what's still open. Keep the original plan
+text below for context; update this section as the service changes.
+
+## Current architecture (deviates from the plan)
+
+The plan proposed nesting the worker inside `personal-web-app`'s compose project on the
+existing VM. Instead it shipped as its **own top-level service**, following the repo's
+standard "one root app dir → one Jenkins entry → one Terraform resource → one inventory →
+one playbook" convention (see `ADDING_SERVICES.md`):
+
+```text
+knowledge-ingest/                        # repo root, not nested under personal-web-app
+├── src/
+│   ├── index.ts        # orchestration, state load/save, health check, summary logging
+│   ├── documents.ts     # discover .md files, read, sha256 content hash
+│   ├── chunk.ts          # gpt-4.1-nano chunking (createChunksFromDocument)
+│   ├── embeddings.ts     # text-embedding-3-large via ai-sdk
+│   ├── qdrant.ts        # ensureCollectionExists / upsert / delete / stats
+│   └── types.ts
+├── Dockerfile            # multi-stage: tsc build, then supercronic + tzdata runtime
+├── crontab               # 0 3 * * * node /app/dist/index.js
+├── compose.yml           # single `knowledge-ingest` service, no ports
+├── knowledge-base/       # sample Insurellm docs, local-only (not deployed)
+└── app-state/            # gitignored, state.json lives here locally
+
+Deployed to its own Proxmox VM (192.168.1.132):
+  Jenkinsfile              → 'knowledge-ingest' service entry (OPENAI_API_KEY from
+                             Jenkins credential 'openai-api-key', not from a shared web-app env)
+  ansible/inventory/knowledge-ingest.ini
+  ansible/playbooks/deploy-knowledge-ingest.yml
+```
+
+Qdrant stays external and unmanaged by this service, as planned — `192.168.1.131:6333`,
+collection `knowledge`, both required via env with no hardcoded fallback
+(`healthCheck()` throws on missing `QDRANT_URL`/`QDRANT_COLLECTION_NAME`/
+`OPENAI_API_KEY`/`EMBEDDING_DIMENSIONS`). Collection creation itself lives outside this
+repo path, in `personal-web-app/apps/knowledge-assistant/setup_db.ts`.
+
+## What's implemented (matches the plan)
+
+- **Rename**: `injest` → `ingest` done throughout.
+- **Split responsibilities**: `documents.ts` / `chunk.ts` / `embeddings.ts` / `qdrant.ts` /
+  `index.ts`, per the plan. No separate `state.ts` — state load/save lives directly in
+  `index.ts` as a small zod-validated `AppState` (`{ documents: { [relativeSource]:
+  { contentHash, lastIndexedAt, chunkIds } } }`).
+- **Document-level SHA-256 + incremental skip**: `createContentHash` hashes whole document
+  text before chunking; unchanged documents are skipped (`[SKIP] ... - unchanged`).
+- **Persistent manifest**: `app-state/state.json`, mounted host → `/data/state`
+  (`APP_STATE_BASE_PATH`), knowledge base mounted read-only host → `/data/knowledge-base`
+  (`KNOWLEDGE_BASE_PATH`).
+- **Checkpointing beyond the plan**: state is saved after *every* successfully processed
+  document (`checkpoint()` inside the loop), not only at the end of a run — a crash
+  partway through only loses progress on the document in flight, not the whole run.
+- **Sequential, one-document-at-a-time processing**: no concurrency in `index.ts`'s main
+  loop, exactly as recommended.
+- **Stable relative source names**: `toStateKey = relative(KNOWLEDGE_BASE_PATH, source)`;
+  chunks are created with the relative key as `source`, so state keys and Qdrant payload
+  `source` values survive the container mount path changing.
+- **Write-before-delete on update**: new chunks are embedded and upserted first, then the
+  diff of stale `chunkIds` (previous minus current) is deleted — a mid-run failure never
+  drops a document to zero vectors.
+- **Deleted-file sync**: any manifest entry whose file no longer exists on disk is treated
+  as an orphan, its Qdrant points are deleted, and the manifest entry is dropped
+  (`[DELETE] ...`) — retried on next run if the delete itself fails.
+- **Dockerized, TS compiled at build time**: multi-stage Dockerfile, `tsc` in the build
+  stage, prod-only `npm ci --omit=dev` in the runtime stage, runs as the non-root `node`
+  user. `@qdrant/js-client-rest` is a real dependency now.
+- **Supercronic schedule**: `0 3 * * *`, `TZ=America/New_York` set via compose
+  `environment`, PID 1 is supercronic so job output lands in `docker logs`.
+- **Ansible creates but never overwrites persistent dirs**: `knowledge-base/` (owned by the
+  deploy user, so files can be dropped in without sudo) and `app-state/` (owned by uid
+  1000, the container's `node` user) are created idempotently and excluded from the
+  source copy step.
+- **Observable runs**: per-document `[SKIP]/[NEW]/[UPDATE]/[DELETE]/[FAIL]` lines plus a
+  padded summary table (discovered/unchanged/new/changed/deleted, vectors
+  uploaded/deleted, live collection point count via `getCollectionStats()`, duration).
+  Nonzero exit code if anything failed, without blocking the rest of the run.
+
+## Deviations worth flagging
+
+- **Own VM instead of folding into `personal-web-app`**: bigger blast radius than the plan
+  assumed (new Terraform/Ansible/Jenkins surface), but matches how every other service in
+  this repo is deployed and keeps the OpenAI key scoped to one Jenkins credential instead
+  of living in the web app's shared `.env`.
+- **Qdrant collection existence is checked, not created**: `ensureCollectionExists()` in
+  `qdrant.ts` throws if the collection is missing rather than creating it; collection
+  bootstrap is a manual/separate step (`setup_db.ts` under
+  `personal-web-app/apps/knowledge-assistant/`, run once against Qdrant directly).
+
+## Open items / not yet done
+
+- **Retrieval/query service** (plan's step 16) hasn't started against this schema.
+  `personal-web-app/apps/knowledge-assistant/{answer.ts,cli.ts,setup_db.ts}` is an earlier,
+  separate prototype — still references a `personal_knowledge` collection name in its
+  design notes (`next.md`) vs. this service's actual `knowledge` collection, so it isn't
+  wired up to what `knowledge-ingest` is actually populating yet.
+- **Dead code from the old bulk-processing prototype**: `chunk.ts` still exports
+  `convertDocumentsToChunks` (with `pLimit`/`CHUNKING_CONCURRENCY = 10`), but `index.ts`
+  now calls `createChunksFromDocument` directly per document and never uses the bulk
+  helper — worth deleting along with the now-unused `p-limit` dependency.
+- **No README** in `knowledge-ingest/` describing env vars, local dev (`npm run dev`),
+  manual run (`docker compose run --rm knowledge-ingest node dist/index.js`), or the
+  state-file format for someone new to the repo.
+- **In-progress, unrelated experiment on this branch**: `src/jev.ts` was deleted and
+  `src/jev.experiment.ts` (untracked) added — a `@typesafe-ai/sdk`-based intent-routing
+  sketch ("jev"), not imported by `index.ts` and not part of the ingestion pipeline. Looks
+  like exploratory work for a future "cheap router in front of the RAG answerer" idea, not
+  ready to fold into this service.
+
+## Suggested next steps, in order
+
+1. Delete the unused `convertDocumentsToChunks` / `CHUNKING_CONCURRENCY` / `p-limit` path
+   in `chunk.ts` (and the `p-limit` dependency) now that processing is document-at-a-time.
+2. Add a short README to `knowledge-ingest/` (env vars, local dev, manual run, state file).
+3. Decide `jev.experiment.ts`'s fate — commit it somewhere intentional (e.g. under
+   `agent-plans/next/` as a design note, or a dedicated experiment branch) rather than
+   leaving a deleted-file/new-file pair uncommitted on `main`.
+4. Reconcile the retrieval prototype's collection name/schema with this service's actual
+   Qdrant collection (`knowledge`) before building the query/answer service further.
+
+---
+
+## Original plan (as proposed, before implementation)
 
 Your current `injest.ts` already has the core pipeline: recursively load documents, chunk them with `gpt-4.1-nano`, create `text-embedding-3-large` embeddings, and upsert them into Qdrant.  The work now is mostly about turning that prototype into an idempotent batch job.
 
@@ -32,7 +157,7 @@ I would also fix the naming now: rename **`injest` → `ingest`** everywhere.
 
 ### Proposed directory structure
 
-I’d reorganize the existing package into something like:
+I'd reorganize the existing package into something like:
 
 ```text
 personal-web-app/
@@ -74,7 +199,7 @@ container:
 
 That way you can drop a file into the host directory at any time without rebuilding or redeploying the container.
 
-Your current Compose project only contains `web` and `cloudflared`, so `knowledge-ingest` becomes a third service. 
+Your current Compose project only contains `web` and `cloudflared`, so `knowledge-ingest` becomes a third service.
 
 ---
 
@@ -168,7 +293,7 @@ compare against previous successful run
        save new hash
 ```
 
-You already have a SHA-256 helper, but currently it hashes individual chunks **after the expensive LLM chunking call has happened**. 
+You already have a SHA-256 helper, but currently it hashes individual chunks **after the expensive LLM chunking call has happened**.
 
 Add a document-level hash:
 
@@ -232,7 +357,7 @@ embed ALL resulting chunks
 upload everything
 ```
 
-The script even loads every file's complete contents into memory before processing. 
+The script even loads every file's complete contents into memory before processing.
 
 For a growing knowledge base, use:
 
@@ -267,7 +392,7 @@ This gives you:
 
 You could eventually process 2–3 documents concurrently, but I'd start sequentially.
 
-Your current `CHUNKING_CONCURRENCY` is `10`; I wouldn't carry that into version one of the scheduled worker. 
+Your current `CHUNKING_CONCURRENCY` is `10`; I wouldn't carry that into version one of the scheduled worker.
 
 ---
 
@@ -419,7 +544,7 @@ Your package scripts could become:
 }
 ```
 
-One dependency issue should also be fixed while doing this: `injest.ts` imports `@qdrant/js-client-rest`, but that package isn't currently listed in the package's dependencies. 
+One dependency issue should also be fixed while doing this: `injest.ts` imports `@qdrant/js-client-rest`, but that package isn't currently listed in the package's dependencies.
 
 ---
 
@@ -480,7 +605,7 @@ It's simply a scheduled worker.
 
 I would **not add Qdrant to this Compose project**.
 
-Your current ingestion code is already configured to connect to the Qdrant server at `192.168.1.131:6333`. 
+Your current ingestion code is already configured to connect to the Qdrant server at `192.168.1.131:6333`.
 
 Change the configuration so production requires:
 
@@ -520,7 +645,7 @@ site/
 nginx/
 ```
 
-to `/opt/personal-web-app`. It does **not** copy anything under `apps/`. 
+to `/opt/personal-web-app`. It does **not** copy anything under `apps/`.
 
 So we'd update the playbook to create:
 
@@ -551,7 +676,7 @@ ingest-state/
 
 and should **not overwrite their contents** during deployment.
 
-The existing CI/CD setup already redeploys `personal-web-app` whenever something underneath that root application folder changes, so we don't need another Jenkins service or another Proxmox VM for this. 
+The existing CI/CD setup already redeploys `personal-web-app` whenever something underneath that root application folder changes, so we don't need another Jenkins service or another Proxmox VM for this.
 
 ---
 
@@ -662,3 +787,4 @@ Delete it:
 and the corresponding Qdrant vectors disappear.
 
 That gives you a solid ingestion layer on which the eventual RAG query service can depend.
+</content>

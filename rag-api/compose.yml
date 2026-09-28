@@ -1,0 +1,23 @@
+services:
+  # answers questions from the knowledge collection that knowledge-ingest keeps up to date;
+  # reached publicly only through the personal-web-app nginx /api/ proxy
+  rag-api:
+    build:
+      context: .
+    restart: unless-stopped
+
+    ports:
+      - "8090:8090"
+
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_URL=http://192.168.1.131:6333
+      - QDRANT_COLLECTION_NAME=knowledge
+      - EMBEDDING_DIMENSIONS=3072
+      - REWRITE_MODEL=gpt-4.1-nano
+      - RERANK_MODEL=gpt-4.1-nano
+      - ANSWER_MODEL=gpt-4.1-nano
+      # only the personal-web-app nginx may set X-Forwarded-For
+      - TRUSTED_PROXY=192.168.1.128
+      - PORT=8090
+      - DOTENV_CONFIG_QUIET=true

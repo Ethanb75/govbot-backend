@@ -28,7 +28,7 @@ export const ragChatRoutes = async (app: FastifyInstance) => {
         const question = messages[messages.length - 1].content;
         const history = messages.slice(0, -1);
 
-        // node
+        // node thing
         const abort = new AbortController();
 
         // when the connection is closed to the client, abort request and stop using tokens

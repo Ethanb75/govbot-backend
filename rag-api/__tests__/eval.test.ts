@@ -21,7 +21,8 @@ export type TestQuestion = {
   category: string
 }
 
-// Calculate reciprocal rank for a single keyword (case-insensitive).
+// Calculate mean reciprocal rank for a single keyword (case-insensitive).
+// MRR = average inverse rank of first hit; it would be 1 if the first chunk ALWAYS had the relevant context
 const calculateMrr = (keyword: string, retrievedDocs: RetrievedChunk[]): number => {
   const keywordLower = keyword.toLowerCase();
 
@@ -46,6 +47,7 @@ const calculateDcg = (relevances: number[], k: number): number => {
 }
 
 // Calculate nDCG for a single keyword (binary relevance, case-insensitive).
+// nDCG = look at all the relevant chunks and measure if the relevant chunks get ranked higher
 const calculateNDCG = (keyword: string, retrievedDocs: RetrievedChunk[], k: number = 10): number => {
   const keywordLower = keyword.toLowerCase();
 
@@ -66,7 +68,7 @@ const calculateNDCG = (keyword: string, retrievedDocs: RetrievedChunk[], k: numb
 const evaluateRetrieval = async (test: TestQuestion) => {
   const { chunks } = await fetchContext(test.question, []);
   const mrrScores = test.keywords.map(keyword => calculateMrr(keyword, chunks));
-  
+
   const avgMrr = mrrScores.length > 0 ? mrrScores.reduce((a, b) => a + b, 0) / mrrScores.length : 0;
   
   // # Calculate nDCG (average across all keywords)
@@ -79,6 +81,7 @@ const evaluateRetrieval = async (test: TestQuestion) => {
 
     return a + 0;
   }, 0)
+  
   const totalKeywords = test.keywords.length;
   const keywordCoverage = totalKeywords ? (keywordsFound / totalKeywords * 100) : 0
 

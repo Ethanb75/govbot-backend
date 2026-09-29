@@ -9,7 +9,9 @@
   "scripts": {
     "dev": "tsx src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "test": "tsx __tests__/eval.test.ts",
+    "prepare": "husky"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.69",
@@ -22,6 +24,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.3",
+    "husky": "^9.1.7",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
   }

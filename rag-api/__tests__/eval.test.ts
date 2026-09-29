@@ -1,4 +1,6 @@
 // import tests
+import { writeFileSync } from "node:fs";
+import path from "node:path";
 import testsJSON from "./tests.json";
 import { fetchContext } from "../src/rag/answer";
 import { RetrievedChunk } from "../src/rag/types.js";
@@ -98,6 +100,8 @@ const evaluate = async () => {
   // load all tests
   const tests: TestQuestion[] = testsJSON?.tests || [];
   // check test format with zod. report if schema is messed up (maybe warn and continue)
+  const shouldSave = process.argv.includes('--save');
+  const results = [];
 
   for (const test of tests || []) {
     const {mrr, ncdg, totalKeywords, keywordCoverage} = await evaluateRetrieval(test);
@@ -106,8 +110,12 @@ const evaluate = async () => {
     console.log('totalKeywords', totalKeywords);
     console.log('keywordCoverage', keywordCoverage);
 
-    
-    
+    results.push({ question: test.question, mrr, ncdg, totalKeywords, keywordCoverage });
+  }
+
+  if (shouldSave) {
+    // TODO - compare and report diffs
+    writeFileSync(path.join(import.meta.dirname, 'current-results.json'), JSON.stringify(results, null, 2));
   }
 }
 

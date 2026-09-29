@@ -100,28 +100,13 @@ const evaluate = async () => {
   // check test format with zod. report if schema is messed up (maybe warn and continue)
 
   for (const test of tests || []) {
-    // console.log('test', test);
-    // print(f"\n{'=' * 80}")
-    // print(f"Test #{test_number}")
-    // print(f"{'=' * 80}")
-    // print(f"Question: {test.question}")
-    // print(f"Keywords: {test.keywords}")
-    // print(f"Category: {test.category}")
-    // print(f"Reference Answer: {test.reference_answer}")
-
-    // # Retrieval Evaluation
-    // print(f"\n{'=' * 80}")
-    // print("Retrieval Evaluation")
-    // print(f"{'=' * 80}")
-
-    // retrieval_result = evaluate_retrieval(test)
-    // retrieved_docs
-
     const {mrr, ncdg, totalKeywords, keywordCoverage} = await evaluateRetrieval(test);
     console.log('MRR', mrr);
     console.log('NCDG', ncdg);
     console.log('totalKeywords', totalKeywords);
     console.log('keywordCoverage', keywordCoverage);
+
+    
     
   }
 }

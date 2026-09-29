@@ -62,9 +62,13 @@ export const ragChatRoutes = async (app: FastifyInstance) => {
         // used for citations
         reply.raw.write(sseEvent("sources", sources));
         try {
+            let answer = "";
             for await (const text of textStream) {
+                answer += text;
                 reply.raw.write(sseEvent("delta", { text }));
             }
+            console.log('originalQuestion: ', question);
+            console.log('fully streamed answer: ', answer);
             reply.raw.write(sseEvent("done", {}));
         } catch (error) {
             if (!abort.signal.aborted) {

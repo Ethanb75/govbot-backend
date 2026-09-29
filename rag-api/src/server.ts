@@ -4,7 +4,7 @@ import { AISDKError } from "ai";
 import { config } from "./config.js";
 import { healthRoutes } from "./routes/health.js";
 import { ragChatRoutes } from "./routes/rag-chat.js";
-import { searchRoutes } from "./routes/search.js";
+// import { searchRoutes } from "./routes/search.js";
 
 const app = Fastify({
     logger: true,
@@ -31,7 +31,7 @@ app.setErrorHandler((error: { statusCode?: number; message: string }, request, r
 });
 
 await app.register(healthRoutes);
-await app.register(searchRoutes);
+// await app.register(searchRoutes);
 await app.register(ragChatRoutes);
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // Caps keep a single request from turning into a large OpenAI bill
 export const MAX_MESSAGES = 20;
-export const MAX_MESSAGE_LENGTH = 4000;
+export const MAX_MESSAGE_LENGTH = 4000; // make sure FE know's about this length AND backend returns a good error message
 
 export const MessageSchema = z.object({
     role: z.enum(["user", "assistant"]),

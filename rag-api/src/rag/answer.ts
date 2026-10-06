@@ -43,5 +43,5 @@ export const streamAnswer = async (question: string, history: Message[], abortSi
         abortSignal,
     });
 
-    return { rewrittenQuery, chunks, textStream: result.textStream };
+    return { rewrittenQuery, chunks, model: config.ANSWER_MODEL, textStream: result.textStream };
 };

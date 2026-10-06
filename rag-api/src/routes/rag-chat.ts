@@ -37,7 +37,7 @@ export const ragChatRoutes = async (app: FastifyInstance) => {
         });
 
         // Retrieval happens here, before any response is sent, so failures still get a normal error status
-        const { chunks, textStream } = await streamAnswer(question, history, abort.signal);
+        const { chunks, model, textStream } = await streamAnswer(question, history, abort.signal);
         const sources = toSources(chunks);
 
         console.log("sources: ", sources)
@@ -46,7 +46,7 @@ export const ragChatRoutes = async (app: FastifyInstance) => {
         if (!stream) {
             let answer = "";
             for await (const text of textStream) answer += text;
-            return { answer, sources };
+            return { answer, sources, model };
         }
 
         // tell fastly we're hijacking the response. then set headers for SSE - Server Sent Events
@@ -59,6 +59,8 @@ export const ragChatRoutes = async (app: FastifyInstance) => {
             "X-Accel-Buffering": "no",
         });
 
+        // lets the client show which model wrote the answer
+        reply.raw.write(sseEvent("model", { model }));
         // used for citations
         reply.raw.write(sseEvent("sources", sources));
         try {

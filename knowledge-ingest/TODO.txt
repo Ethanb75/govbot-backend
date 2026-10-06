@@ -1,6 +1,2 @@
 next:
-- chunk db?
-- setup chat completion service
-- setup FE
-- setup evals, add to cicd pipeline
 - grafana k6 tests.

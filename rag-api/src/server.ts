@@ -6,6 +6,8 @@ import { healthRoutes } from "./routes/health.js";
 import { ragChatRoutes } from "./routes/rag-chat.js";
 // import { searchRoutes } from "./routes/search.js";
 
+// TODO - 1 big function! wrap in default err handling if uncaught error
+
 const app = Fastify({
     logger: true,
     // MAX_MESSAGES * MAX_MESSAGE_LENGTH plus room for JSON overhead
@@ -13,6 +15,7 @@ const app = Fastify({
     // only trust X-Forwarded-For from the nginx proxy, so clients can't spoof their IP past the rate limit
     trustProxy: config.TRUSTED_PROXY ?? false,
 });
+
 
 await app.register(rateLimit, {
     max: config.RATE_LIMIT_PER_MINUTE,

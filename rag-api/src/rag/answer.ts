@@ -1,7 +1,7 @@
 import { streamText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { config } from "../config.js";
-import { SYSTEM_PROMPT } from "./prompts.js";
+import { buildSystemPrompt } from "./prompts.js";
 import { rerank } from "./rerank.js";
 import { mergeChunks, retrieve } from "./retrieve.js";
 import { rewriteQuery } from "./rewrite.js";
@@ -30,7 +30,7 @@ export const buildContext = (chunks: RetrievedChunk[]): string => {
         .map(chunk => `Extract from ${chunk.metadata.source}:\n${chunk.pageContent}`)
         .join("\n\n");
 
-    return SYSTEM_PROMPT.replace("{context}", context);
+    return buildSystemPrompt(context);
 };
 
 export const streamAnswer = async (question: string, history: Message[], abortSignal?: AbortSignal) => {

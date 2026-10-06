@@ -1,0 +1,2 @@
+eventually grab me via api from knowledge ingest. or some base business logic service
+use meta to build prompts. no need to remember to add them everywhere

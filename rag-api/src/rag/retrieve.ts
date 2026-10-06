@@ -3,6 +3,9 @@ import { embedQuery } from "../embeddings.js";
 import { qdrant } from "../qdrant.js";
 import { ChunkPayload, RetrievedChunk } from "./types.js";
 
+// add a function to grab stats about qdrant? maybe then move meta to a different db/service?
+// add an interface for vector db
+
 export const retrieve = async (query: string): Promise<RetrievedChunk[]> => {
     const embedding = await embedQuery(query);
 

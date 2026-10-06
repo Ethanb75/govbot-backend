@@ -16,7 +16,7 @@ services:
       - EMBEDDING_DIMENSIONS=3072
       - REWRITE_MODEL=gpt-4.1-nano
       - RERANK_MODEL=gpt-4.1-nano
-      - ANSWER_MODEL=gpt-4.1-nano
+      - ANSWER_MODEL=gpt-5.4-mini
       # only the personal-web-app nginx may set X-Forwarded-For
       - TRUSTED_PROXY=192.168.1.128
       - PORT=8090

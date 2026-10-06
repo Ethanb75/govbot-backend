@@ -10,7 +10,7 @@ const Config = z.object({
     EMBEDDING_DIMENSIONS: z.coerce.number().int().positive().default(3072),
     REWRITE_MODEL: z.string().default("gpt-4.1-nano"),
     RERANK_MODEL: z.string().default("gpt-4.1-nano"),
-    ANSWER_MODEL: z.string().default("gpt-4.1-nano"),
+    ANSWER_MODEL: z.string().default("gpt-5.4-mini"),
     RETRIEVAL_K: z.coerce.number().int().positive().default(20),
     FINAL_K: z.coerce.number().int().positive().default(10),
     // IP of the reverse proxy allowed to set X-Forwarded-For; unset when running locally

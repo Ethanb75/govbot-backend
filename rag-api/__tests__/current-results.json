@@ -1,15 +1,15 @@
 [
   {
     "question": "What is the maximum gross vehicle weight allowed for five-axle vehicles on Georgia state roadways under the petroleum supply state of emergency?",
-    "mrr": 0.7777777777777777,
-    "ncdg": 0.7706836236897882,
+    "mrr": 0.8333333333333334,
+    "ncdg": 0.8552885735165988,
     "totalKeywords": 3,
     "keywordCoverage": 100
   },
   {
     "question": "Which fuel taxes did the Governor suspend in the petroleum supply state of emergency, and under what legal authority?",
     "mrr": 0.75,
-    "ncdg": 0.8254604649035664,
+    "ncdg": 0.7882455133068251,
     "totalKeywords": 4,
     "keywordCoverage": 100
   },

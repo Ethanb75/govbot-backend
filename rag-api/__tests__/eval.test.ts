@@ -67,7 +67,7 @@ const calculateNDCG = (keyword: string, retrievedDocs: RetrievedChunk[], k: numb
   return idcg > 0 ? dcg / idcg : 0;
 }
 
-const evaluateRetrieval = async (test: TestQuestion) => {
+const evaluateChunkRetrieval = async (test: TestQuestion) => {
   const { chunks } = await fetchContext(test.question, []);
   const mrrScores = test.keywords.map(keyword => calculateMrr(keyword, chunks));
 
@@ -104,7 +104,7 @@ const evaluate = async () => {
   const results = [];
 
   for (const test of tests || []) {
-    const {mrr, ncdg, totalKeywords, keywordCoverage} = await evaluateRetrieval(test);
+    const {mrr, ncdg, totalKeywords, keywordCoverage} = await evaluateChunkRetrieval(test);
     console.log('MRR', mrr);
     console.log('NCDG', ncdg);
     console.log('totalKeywords', totalKeywords);

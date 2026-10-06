@@ -10,8 +10,7 @@
     "dev": "tsx src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "tsx __tests__/eval.test.ts",
-    "prepare": "husky"
+    "test": "tsx __tests__/eval.test.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.69",

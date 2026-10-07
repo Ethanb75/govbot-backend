@@ -12,7 +12,11 @@ const Config = z.object({
     RERANK_MODEL: z.string().default("gpt-4.1-nano"),
     // ANSWER_MODEL: z.string().default("gpt-5.4-mini"),
     ANSWER_MODEL: z.string().default("gpt-4.1-nano"),
-    RETRIEVAL_K: z.coerce.number().int().positive().default(20),
+    // Workers AI, used for the intent check; optional so the service still starts without them
+    CLOUDFLARE_WORKER_API_KEY: z.string().optional(),
+    CLOUDFLARE_WORKER_ACCOUNT_ID: z.string().optional(),
+    INTENT_MODEL: z.string().default("@cf/cloudflare/clef"),
+    RETRIEVAL_K:z.coerce.number().int().positive().default(20),
     FINAL_K: z.coerce.number().int().positive().default(10),
     // IP of the reverse proxy allowed to set X-Forwarded-For; unset when running locally
     TRUSTED_PROXY: z.string().optional(),

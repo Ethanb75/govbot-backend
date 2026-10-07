@@ -56,3 +56,16 @@ export const buildRerankPrompt = (question: string, chunks: string[]): string =>
     userPrompt += "Reply only with the list of ranked chunk ids, nothing else.";
     return userPrompt;
 };
+
+// Clef takes typed questions rather than a system prompt; it returns a probability for each criterion
+export const INTENT_QUESTIONS = {
+    intent: {
+        type: "choice",
+        instructions: "This is a chat with an assistant that answers questions about Georgia state government laws and the Governor's executive orders. What is the intent of the latest user message, using the earlier messages for context?",
+        criteria: {
+            knowledge_base: "A question about Georgia laws or executive orders that needs a lookup in the Knowledge Base",
+            conversational: "Greetings, thanks, or small talk",
+            off_topic: "Anything else",
+        },
+    },
+};

@@ -1,3 +1,4 @@
+- add decision model to determine intent
 - move history from FE, add chat history db based on some client identifier?
 - add quick decision model to streamAnswer, if easy answer just use it
 - during build, grab sources from knowledge ingest. use the sources to build files for RAG api

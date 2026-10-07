@@ -1,0 +1,41 @@
+services:
+  # authoritative executive order metadata and ingest state for GovBot - qdrant (vector-db)
+  # stays the search index
+  postgres:
+    image: postgres:18.6-bookworm
+    container_name: govbot-postgres-db
+    restart: unless-stopped
+
+    # config/ is mounted as a directory rather than mounting pg_hba.conf directly: Ansible replaces
+    # files by renaming over them, which a single-file bind mount would never see
+    command: postgres -c hba_file=/etc/postgresql/govbot/pg_hba.conf
+
+    environment:
+      - POSTGRES_DB=govbot
+      - POSTGRES_USER=govbot_db_admin
+      - POSTGRES_PASSWORD=${POSTGRES_ADMIN_PASSWORD}
+      # only read by scripts/sync-roles.sh, which creates the login roles on every deploy
+      - GOVBOT_INGEST_PASSWORD=${GOVBOT_INGEST_PASSWORD}
+      - GOVBOT_APP_PASSWORD=${GOVBOT_APP_PASSWORD}
+      - TZ=America/New_York
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      # postgres 18 images keep their data under /var/lib/postgresql/18/docker, so the mount
+      # targets /var/lib/postgresql rather than the old /var/lib/postgresql/data
+      - /srv/govbot-postgres-db/data:/var/lib/postgresql
+      - ./config:/etc/postgresql/govbot:ro
+      - ./migrations:/migrations:ro
+      - ./scripts:/scripts:ro
+
+    healthcheck:
+      # -h forces TCP: during first-time init the entrypoint runs a socket-only temporary server
+      # that would otherwise report ready before the real one starts
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U govbot_db_admin -d govbot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      # first boot runs initdb before the real server starts
+      start_period: 30s

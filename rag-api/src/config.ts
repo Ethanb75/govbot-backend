@@ -16,6 +16,8 @@ const Config = z.object({
     CLOUDFLARE_WORKER_API_KEY: z.string().optional(),
     CLOUDFLARE_WORKER_ACCOUNT_ID: z.string().optional(),
     INTENT_MODEL: z.string().default("@cf/cloudflare/clef"),
+    // govbot-postgres-db (read-only govbot_app role), used by the executive order tool; optional so local dev and the evals still start without it
+    GOVBOT_DATABASE_URL: z.string().optional(),
     RETRIEVAL_K:z.coerce.number().int().positive().default(20),
     FINAL_K: z.coerce.number().int().positive().default(10),
     // IP of the reverse proxy allowed to set X-Forwarded-For; unset when running locally

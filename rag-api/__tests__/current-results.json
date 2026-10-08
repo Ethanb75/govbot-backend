@@ -9,15 +9,15 @@
   {
     "question": "Which fuel taxes did the Governor suspend in the petroleum supply state of emergency, and under what legal authority?",
     "mrr": 0.75,
-    "ncdg": 0.8077482804910908,
+    "ncdg": 0.7788955199507182,
     "totalKeywords": 4,
     "keywordCoverage": 100
   },
   {
     "question": "When does Georgia's state of emergency for petroleum supply disruptions take effect and when does it expire?",
-    "mrr": 0,
-    "ncdg": 0,
+    "mrr": 0.3333333333333333,
+    "ncdg": 0.3333333333333333,
     "totalKeywords": 3,
-    "keywordCoverage": 0
+    "keywordCoverage": 33.33333333333333
   }
 ]

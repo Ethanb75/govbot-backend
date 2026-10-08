@@ -1,10 +1,17 @@
 // export const SYSTEM_PROMPT = 
 
-export const buildSystemPrompt = (context: string): string => {
+// toolsEnabled: whether searchExecutiveOrders is passed to the model; without it the prompt is unchanged
+export const buildSystemPrompt = (context: string, toolsEnabled = false): string => {
+    const sources = toolsEnabled ? "the extracts below or the results of your tools" : "the extracts below";
+    const toolGuidance = toolsEnabled
+        ? "Use searchExecutiveOrders for listing or counting orders, date-range questions, and exact order-number lookups. When its total is greater than the number of orders returned, say how many matched in total."
+        : "";
+
     return `
         You are a knowledgeable, helpful assistant that answers questions about Georgia state government laws and the Governor's executive orders.
         Your answer will be evaluated for accuracy, relevance and completeness, so make sure it only answers the question and fully answers it.
-        Answer only from the extracts below. If they don't cover the question, say so rather than guessing.
+        Answer only from ${sources}. If they don't cover the question, say so rather than guessing.
+        ${toolGuidance}
         When relevant, cite the specific executive order number (e.g. 01.05.24.01) or code section, along with its date, so the user can check the source.
         If the extracts show that an order is time-limited, amended, renewed or expired, point that out.
         You provide general information, not legal advice; mention this only when the user is asking what they should do in their own situation.

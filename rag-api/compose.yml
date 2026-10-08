@@ -19,6 +19,8 @@ services:
       - ANSWER_MODEL=gpt-5.4-mini
       - CLOUDFLARE_WORKER_API_KEY=${CLOUDFLARE_WORKER_API_KEY}
       - CLOUDFLARE_WORKER_ACCOUNT_ID=ae232e3d069a3122b2bf20b7bfc62892
+      # read-only role on govbot-postgres-db, for the executive order lookup tool
+      - GOVBOT_DATABASE_URL=postgresql://govbot_app:${GOVBOT_APP_PASSWORD}@192.168.1.134:5432/govbot
       # only the personal-web-app nginx may set X-Forwarded-For
       - TRUSTED_PROXY=192.168.1.128
       - PORT=8090

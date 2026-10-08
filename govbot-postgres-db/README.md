@@ -1,6 +1,6 @@
 # govbot-postgres-db
 
-PostgreSQL 18 holding GovBot's structured executive order metadata and ingest state. Qdrant (`vector-db`) stays the search index; this database is the source of truth for which orders exist, which are indexed, and corpus statistics.
+PostgreSQL 18 holding GovBot's structured executive order metadata and ingest state. Qdrant (`vector-db`) stays the search index; this database is the source of truth for which orders exist, which are indexed, and corpus statistics. 
 
 | Setting         | Value                          |
 | --------------- | ------------------------------ |

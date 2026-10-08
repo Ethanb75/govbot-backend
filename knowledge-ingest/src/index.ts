@@ -3,7 +3,8 @@ import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSy
 import { join, relative } from "node:path";
 import { z } from "zod";
 
-import { createContentHash, discoverDocuments, loadDocument } from "./documents.js";
+import { connectDb, describeDatabaseUrl } from "./db.js";
+import { createContentHash, discoverDocuments, executiveOrderRef, loadDocument } from "./documents.js";
 import { createChunksFromDocument } from "./chunk.js";
 import { createEmbeddings } from "./embeddings.js";
 import { deleteChunks, ensureCollectionExists, getCollectionStats, upsertChunks } from "./qdrant.js";
@@ -73,10 +74,12 @@ const ingest = async (): Promise<void> => {
     console.log("Knowledge ingestion started");
     console.log(`Knowledge base: ${KNOWLEDGE_BASE_PATH}`);
     console.log(`Qdrant:         ${process.env.QDRANT_URL}`);
-    console.log(`Collection:     ${process.env.QDRANT_COLLECTION_NAME}\n`);
+    console.log(`Collection:     ${process.env.QDRANT_COLLECTION_NAME}`);
+    console.log(`Database:       ${process.env.GOVBOT_DATABASE_URL ? describeDatabaseUrl(process.env.GOVBOT_DATABASE_URL) : "disabled (GOVBOT_DATABASE_URL not set)"}\n`);
 
     healthCheck();
     await ensureCollectionExists();
+    const db = await connectDb();
 
     const appState = loadAppState();
     // Built up as we walk the knowledge base; whatever is left behind in appState is an orphan.
@@ -104,11 +107,22 @@ const ingest = async (): Promise<void> => {
 
         const text = loadDocument(doc.source);
         const contentHash = createContentHash(text);
+        // set for executive orders, whose govbot-postgres-db row tracks their qdrant status
+        const ref = executiveOrderRef(text);
 
         if (previous?.contentHash === contentHash) {
             console.log(`[SKIP] ${key} - unchanged`);
             nextState.documents[key] = previous;
             unchanged.push(key);
+            // Reconcile from state: repairs missed writes and rows the crawler created after the
+            // vectors (e.g. its --backfill-db), without re-embedding.
+            if (ref) {
+                await db?.markIndexed(ref, {
+                    documentId: key,
+                    chunkCount: previous.chunkIds.length,
+                    indexedAt: previous.lastIndexedAt,
+                });
+            }
             continue;
         }
 
@@ -124,12 +138,13 @@ const ingest = async (): Promise<void> => {
             await deleteChunks(stale);
             vectorsDeleted += stale.length;
 
-            nextState.documents[key] = {
-                contentHash,
-                lastIndexedAt: new Date().toISOString(),
-                chunkIds,
-            };
+            const lastIndexedAt = new Date().toISOString();
+            nextState.documents[key] = { contentHash, lastIndexedAt, chunkIds };
             checkpoint();
+
+            if (ref) {
+                await db?.markIndexed(ref, { documentId: key, chunkCount: chunkIds.length, indexedAt: lastIndexedAt });
+            }
 
             if (previous) {
                 console.log(`[UPDATE] ${key}`);
@@ -147,6 +162,7 @@ const ingest = async (): Promise<void> => {
             console.error(`[FAIL] ${key} - ${error}`);
             if (previous) nextState.documents[key] = previous;
             failed.push(key);
+            if (ref) await db?.markFailed(ref);
         }
     }
 
@@ -161,6 +177,7 @@ const ingest = async (): Promise<void> => {
             console.log(`[DELETE] ${key}`);
             console.log(`       vectors=${chunkIds.length}`);
             removed.push(key);
+            await db?.markRemoved(key);
         } catch (error) {
             // Keep the entry so the next run retries the cleanup rather than losing the point ids.
             console.error(`[FAIL] ${key} - could not delete chunks: ${error}`);
@@ -171,6 +188,9 @@ const ingest = async (): Promise<void> => {
 
     // save the state of the document store as it is now
     saveAppState(nextState);
+
+    const dbFailures = db?.failures() ?? 0;
+    await db?.end();
 
     const collectionPoints = await getCollectionStats()
         .then(stats => stats.points_count ?? "unknown")
@@ -188,6 +208,7 @@ const ingest = async (): Promise<void> => {
     console.log(summaryRow("Vectors deleted", vectorsDeleted));
     console.log(summaryRow("Collection points", collectionPoints));
     console.log(summaryRow("Failures", failed.length));
+    console.log(summaryRow("DB writes failed", db ? dbFailures : "n/a"));
     console.log("");
     console.log(`Completed in ${((performance.now() - startedAt) / 1000).toFixed(1)}s`);
 
@@ -195,6 +216,7 @@ const ingest = async (): Promise<void> => {
         console.error(`\nfailed documents:\n  ${failed.join("\n  ")}`);
         process.exitCode = 1;
     }
+    if (dbFailures > 0) process.exitCode = 1;
 };
 
 await ingest();

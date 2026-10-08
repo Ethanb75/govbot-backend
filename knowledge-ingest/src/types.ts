@@ -3,6 +3,12 @@ export type KnowledgeDocument = {
     source: string;
 };
 
+// How an executive order's Markdown maps to its govbot-postgres-db row.
+export type ExecutiveOrderRef = {
+    jurisdiction: string;
+    eoNumber: string;
+};
+
 export type LoadedDocument = KnowledgeDocument & {
     text: string;
 };

@@ -34,6 +34,23 @@ Passwords come from the Jenkins credentials `govbot-postgres-admin-password`, `g
 
 `POSTGRES_ADMIN_PASSWORD` is only applied when the data directory is first initialised. The other two are re-applied on every deploy, so to rotate one, change the credential and redeploy.
 
+## Writers
+
+`knowledge-crawler` and `knowledge-ingest` (both on `192.168.1.132`, as `govbot_ingest`) keep `executive_orders` current. See [`agent-plans/plan/crawler-ingest-db.md`](../agent-plans/plan/crawler-ingest-db.md).
+
+| Writer | Writes |
+| --- | --- |
+| crawler (1 AM) | UPSERTs order metadata on every run; one `ingest_runs` row per source per run |
+| ingest (3 AM) | `qdrant_status`, `qdrant_document_id`, `qdrant_chunk_count`, `qdrant_indexed_at`, `last_ingested_at` |
+
+`qdrant_status` lifecycle:
+
+- `pending`: a new row, or the crawler rewrote the order's Markdown. Ingest also sets it when an order's file is removed and its vectors are deleted.
+- `indexed`: ingest has the current Markdown in Qdrant. Re-asserted on every ingest run, including for unchanged files.
+- `failed`: ingest couldn't index the current Markdown. The next run retries it.
+
+Both writers are fail-soft. If this database is down, they log `[DB-FAIL]`, carry on, and exit 1. The next run repairs the rows. To populate rows for orders crawled before the database existed, run the crawler with `--backfill-db` (see `knowledge-ingest/crawler/README.md`).
+
 ## Deploy
 
 Each Jenkins deploy:

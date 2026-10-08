@@ -1,9 +1,14 @@
 # knowledge-crawler
 
-Fetches public documents from government websites and writes them as Markdown into `knowledge-base/`, where the `knowledge-ingest` service picks them up and indexes them into Qdrant. The crawler's only contract with ingest is "produce good `.md` files" - it knows nothing about chunking, embeddings or Qdrant.
+Fetches public documents from government websites and writes them as Markdown into `knowledge-base/`, where the `knowledge-ingest` service picks them up and indexes them into Qdrant. The crawler knows nothing about chunking, embeddings or Qdrant. Its contract with ingest has two parts:
+
+- **Markdown files.** It produces good `.md` files.
+- **govbot-postgres-db.** For executive orders, it UPSERTs a metadata row into `executive_orders` and sets `qdrant_status = 'pending'` whenever it rewrites the order's Markdown. Ingest moves the row to `indexed` or `failed`. The crawler also writes one `ingest_runs` row per source per run. See [`agent-plans/plan/crawler-ingest-db.md`](../../agent-plans/plan/crawler-ingest-db.md).
 
 ```text
 Internet → knowledge-crawler (1:00 AM) → ./knowledge-base → knowledge-ingest (3:00 AM) → Qdrant
+                    │                                               │
+                    └──── executive_orders (pending) ───────────────┴──→ indexed / failed
 ```
 
 ## How it works
@@ -14,7 +19,8 @@ Internet → knowledge-crawler (1:00 AM) → ./knowledge-base → knowledge-inge
 - PDFs use their text layer when they have one and fall back to OCR (`pdftoppm` + `tesseract`) when they don't. Most Georgia executive orders are scans.
 - Each source keeps a state file at `crawler-state/<source-name>.json` so repeat runs skip unchanged documents (a conditional GET that gets a `304`, or a matching content hash).
 - Files are written to a `.tmp` sibling and renamed into place, so ingest never reads a half-written document.
-- Documents are never deleted when they disappear from a website. They are only flagged `currentlyListed: false` in state.
+- Documents are never deleted when they disappear from a website. They are only flagged `currentlyListed: false` in state, and in the row's `raw_metadata`.
+- Database writes are fail-soft. If `GOVBOT_DATABASE_URL` is unset, the database is skipped entirely. If it's set but the database is unreachable, or a single write fails, the crawler logs `[DB-FAIL]`, keeps writing Markdown, and exits 1. Every run re-asserts every listed order, so the next run repairs anything that was missed.
 
 ### Sources
 
@@ -35,6 +41,14 @@ KNOWLEDGE_BASE_PATH=/tmp/kb CRAWLER_STATE_PATH=/tmp/crawler-state npm run dev
 
 # backfill a past year (the cron job only crawls the current year)
 npm run crawl -- --year 2025
+
+# write every order already in crawler-state to govbot-postgres-db, without crawling.
+# The rows land as pending; the next ingest run reconciles them to indexed without re-embedding.
+npm run crawl -- --backfill-db
+
+# on the VM
+cd /opt/knowledge-ingest
+sudo docker compose run --rm knowledge-crawler node dist/index.js --backfill-db
 ```
 
 The local defaults are `../knowledge-base` and `../crawler-state`, which are the real directories. Override them when experimenting.
@@ -44,6 +58,7 @@ The local defaults are `../knowledge-base` and `../crawler-state`, which are the
 | `KNOWLEDGE_BASE_PATH` | `../knowledge-base` | Where Markdown is written (must be writable) |
 | `CRAWLER_STATE_PATH` | `../crawler-state` | Per-source state files |
 | `CRAWL_TIMEOUT_MINUTES` | `30` | Hard stop for the whole run, across all sources |
+| `GOVBOT_DATABASE_URL` | unset (database disabled) | `govbot_ingest` connection string for govbot-postgres-db. Set by `../compose.yml` |
 
 ## Adding a new source
 
@@ -53,6 +68,8 @@ A source is a module in `src/sources/` that exports a `Source` (`src/types.ts`):
 export interface Source {
     name: string;
     crawl: (context: CrawlContext) => Promise<CrawlResult>;
+    // optional: `--backfill-db` support, writing every order in state to the database
+    backfill?: (context: CrawlContext & { db: CrawlerDb }) => Promise<number>;
 }
 ```
 
@@ -80,6 +97,7 @@ The context gives you:
 - `statePath`: directory for your state file. Use ``join(statePath, `${NAME}.json`)`` and nothing else.
 - `year`: the year to crawl (`--year`, or the current year). Ignore it if the source isn't organised by year.
 - `signal`: aborts when the run hits its hard timeout. Pass it to every request and to `extractPdfText`.
+- `db`: govbot-postgres-db, or `undefined` when it's disabled or unreachable. Only sources that produce executive orders use it. Its methods never throw. They log `[DB-FAIL]` and count the failure themselves, so don't add the id to `result.failed`, which means "Markdown not written".
 
 ### 2. Register it
 
@@ -206,4 +224,5 @@ Then:
 - [ ] Never deletes, only sets `currentlyListed: false`
 - [ ] Per-document failures keep the previous state, and `signal` is respected
 - [ ] New system dependencies are in the `Dockerfile` and checked in `healthCheck()`
+- [ ] If the source produces executive orders, it UPSERTs them via `context.db` in every branch (new, changed, unchanged, failed) and implements `backfill`
 - [ ] Second run reports everything unchanged

@@ -2,6 +2,7 @@ import "dotenv/config";
 import { accessSync, constants, existsSync, mkdirSync } from "node:fs";
 import { parseArgs } from "node:util";
 
+import { connectDb, CrawlerDb, describeDatabaseUrl } from "./db.js";
 import { checkOcrTools } from "./pdf.js";
 import { gaExecutiveOrders } from "./sources/ga-executive-orders.js";
 import { Source } from "./types.js";
@@ -18,18 +19,22 @@ const summaryRow = (label: string, value: number | string): string =>
     `${`${label}:`.padEnd(22)}${String(value).padStart(6)}`;
 
 // `npm run crawl -- --year 2025` backfills a past year; the cron job crawls the current year.
-const parseYear = (): number => {
-    const { values } = parseArgs({ options: { year: { type: "string" } } });
-    if (values.year === undefined) return new Date().getFullYear();
+// `npm run crawl -- --backfill-db` writes every order already in state to the database, no crawling.
+const parseCliArgs = (): { year: number; backfillDb: boolean } => {
+    const { values } = parseArgs({
+        options: { year: { type: "string" }, "backfill-db": { type: "boolean", default: false } },
+    });
+    const backfillDb = values["backfill-db"] ?? false;
+    if (values.year === undefined) return { year: new Date().getFullYear(), backfillDb };
 
     const year = Number(values.year);
     if (!Number.isInteger(year) || year < 1900) {
         throw new Error(`invalid --year ${values.year}`);
     }
-    return year;
+    return { year, backfillDb };
 };
 
-const healthCheck = async (): Promise<void> => {
+const healthCheck = async (backfillDb: boolean): Promise<CrawlerDb | undefined> => {
     if (!existsSync(KNOWLEDGE_BASE_PATH)) {
         throw new Error(`knowledge base not found at ${KNOWLEDGE_BASE_PATH}`);
     }
@@ -38,25 +43,19 @@ const healthCheck = async (): Promise<void> => {
     mkdirSync(CRAWLER_STATE_PATH, { recursive: true });
     accessSync(CRAWLER_STATE_PATH, constants.W_OK);
 
-    await checkOcrTools();
+    // a backfill only reads state, so it never OCRs anything
+    if (!backfillDb) await checkOcrTools();
+
+    return connectDb();
 };
 
-const main = async (): Promise<void> => {
-    const startedAt = performance.now();
-    const year = parseYear();
-
-    console.log("Knowledge crawl started");
-    console.log(`Knowledge base: ${KNOWLEDGE_BASE_PATH}`);
-    console.log(`State:          ${CRAWLER_STATE_PATH}`);
-    console.log(`Year:           ${year}\n`);
-
-    await healthCheck();
-
+const crawlSources = async (year: number, db: CrawlerDb | undefined): Promise<string[]> => {
     const signal = AbortSignal.timeout(CRAWL_TIMEOUT_MINUTES * 60_000);
     const failedSources: string[] = [];
 
     for (const source of SOURCES) {
         console.log(`[crawler] ${source.name}`);
+        const runId = await db?.startRun(source.name);
 
         try {
             const result = await source.crawl({
@@ -64,7 +63,9 @@ const main = async (): Promise<void> => {
                 statePath: CRAWLER_STATE_PATH,
                 year,
                 signal,
+                db,
             });
+            await db?.finishRun(runId, { result });
 
             console.log("");
             console.log(summaryRow("Orders discovered", result.discovered));
@@ -80,13 +81,60 @@ const main = async (): Promise<void> => {
             }
         } catch (error) {
             console.error(`[FAIL] ${source.name} - ${error}\n`);
+            await db?.finishRun(runId, { error });
             failedSources.push(source.name);
         }
     }
 
-    console.log(`Completed in ${((performance.now() - startedAt) / 1000).toFixed(1)}s`);
+    return failedSources;
+};
 
-    if (failedSources.length > 0) process.exitCode = 1;
+const backfillSources = async (year: number, db: CrawlerDb): Promise<void> => {
+    for (const source of SOURCES) {
+        if (!source.backfill) continue;
+
+        const written = await source.backfill({
+            knowledgeBasePath: KNOWLEDGE_BASE_PATH,
+            statePath: CRAWLER_STATE_PATH,
+            year,
+            signal: AbortSignal.timeout(CRAWL_TIMEOUT_MINUTES * 60_000),
+            db,
+        });
+        console.log(`[backfill] ${source.name} - ${written} orders`);
+    }
+};
+
+const main = async (): Promise<void> => {
+    const startedAt = performance.now();
+    const { year, backfillDb } = parseCliArgs();
+    const databaseUrl = process.env.GOVBOT_DATABASE_URL;
+
+    console.log(backfillDb ? "Knowledge crawl started (database backfill only)" : "Knowledge crawl started");
+    console.log(`Knowledge base: ${KNOWLEDGE_BASE_PATH}`);
+    console.log(`State:          ${CRAWLER_STATE_PATH}`);
+    console.log(`Database:       ${databaseUrl ? describeDatabaseUrl(databaseUrl) : "disabled (GOVBOT_DATABASE_URL not set)"}`);
+    console.log(`Year:           ${year}\n`);
+
+    const db = await healthCheck(backfillDb);
+
+    try {
+        if (backfillDb) {
+            if (!db) throw new Error("--backfill-db needs a reachable GOVBOT_DATABASE_URL");
+            await backfillSources(year, db);
+        } else {
+            const failedSources = await crawlSources(year, db);
+            if (failedSources.length > 0) process.exitCode = 1;
+        }
+    } finally {
+        const dbFailures = db?.failures() ?? 0;
+        if (dbFailures > 0) {
+            console.error(`[DB-FAIL] ${dbFailures} database writes failed`);
+            process.exitCode = 1;
+        }
+        await db?.end();
+    }
+
+    console.log(`Completed in ${((performance.now() - startedAt) / 1000).toFixed(1)}s`);
 };
 
 await main();

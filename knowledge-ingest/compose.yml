@@ -12,6 +12,8 @@ services:
       - EMBEDDING_DIMENSIONS=3072
       - KNOWLEDGE_BASE_PATH=/data/knowledge-base
       - APP_STATE_BASE_PATH=/data/state
+      # crawler/ingest role on govbot-postgres-db (pg_hba admits it only from this VM)
+      - GOVBOT_DATABASE_URL=postgresql://govbot_ingest:${GOVBOT_INGEST_PASSWORD}@192.168.1.134:5432/govbot
       - TZ=America/New_York
       - DOTENV_CONFIG_QUIET=true
 
@@ -30,6 +32,8 @@ services:
       - KNOWLEDGE_BASE_PATH=/data/knowledge-base
       - CRAWLER_STATE_PATH=/data/state
       - CRAWL_TIMEOUT_MINUTES=30
+      # crawler/ingest role on govbot-postgres-db (pg_hba admits it only from this VM)
+      - GOVBOT_DATABASE_URL=postgresql://govbot_ingest:${GOVBOT_INGEST_PASSWORD}@192.168.1.134:5432/govbot
       - TZ=America/New_York
       - DOTENV_CONFIG_QUIET=true
 

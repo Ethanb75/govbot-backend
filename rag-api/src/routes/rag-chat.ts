@@ -45,14 +45,15 @@ export const ragChatRoutes = async (app: FastifyInstance) => {
             console.log("clef intent: ", JSON.stringify(intent, null, 2));
         }
 
-        const { chunks, model, textStream } = await streamAnswer(question, history, abort.signal);
+        const { chunks, toolChunks, model, textStream } = await streamAnswer(question, history, abort.signal);
         const sources = toSources(chunks);
 
         // if stream: false, combine the text into a string and send normally
+        // sources are built after the loop so they include whatever searchKnowledgeBase found
         if (!stream) {
             let answer = "";
             for await (const text of textStream) answer += text;
-            return { answer, sources, model };
+            return { answer, sources: toSources([...chunks, ...toolChunks]), model };
         }
 
         // tell fastly we're hijacking the response. then set headers for SSE - Server Sent Events
@@ -77,6 +78,8 @@ export const ragChatRoutes = async (app: FastifyInstance) => {
             }
             console.log('originalQuestion: ', question);
             console.log('fully streamed answer: ', answer);
+            // the client replaces sources on each event, so resend the merged list if the KB tool found more
+            if (toolChunks.length) reply.raw.write(sseEvent("sources", toSources([...chunks, ...toolChunks])));
             reply.raw.write(sseEvent("done", {}));
         } catch (error) {
             if (!abort.signal.aborted) {

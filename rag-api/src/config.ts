@@ -20,6 +20,8 @@ const Config = z.object({
     GOVBOT_DATABASE_URL: z.string().optional(),
     RETRIEVAL_K:z.coerce.number().int().positive().default(20),
     FINAL_K: z.coerce.number().int().positive().default(10),
+    // chunks returned per searchKnowledgeBase call; about half the upfront context so tool results stay small
+    TOOL_K: z.coerce.number().int().positive().default(5),
     // IP of the reverse proxy allowed to set X-Forwarded-For; unset when running locally
     TRUSTED_PROXY: z.string().optional(),
     RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(10),

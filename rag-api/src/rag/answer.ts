@@ -3,6 +3,7 @@ import { openai } from "@ai-sdk/openai";
 import { config } from "../config.js";
 import { dbEnabled } from "../db.js";
 import { searchExecutiveOrders } from "./tools/executive-orders/meta-db.js";
+import { createSearchKnowledgeBase } from "./tools/knowledge-base/search.js";
 import { buildSystemPrompt } from "./prompts.js";
 import { rerank } from "./rerank.js";
 import { mergeChunks, retrieve } from "./retrieve.js";
@@ -27,14 +28,14 @@ export const fetchContext = async (question: string, history: Message[]): Promis
     return { rewrittenQuery, chunks: ranked.slice(0, config.FINAL_K) };
 };
 
-export const buildContext = (chunks: RetrievedChunk[], toolsEnabled = false): string => {
+export const buildContext = (chunks: RetrievedChunk[], executiveOrdersEnabled = false): string => {
     const context = chunks
         .map(chunk => `Extract from ${chunk.metadata.source}:\n${chunk.pageContent}`)
         .join("\n\n");
 
-    const test = buildSystemPrompt(context, toolsEnabled);
+    const test = buildSystemPrompt(context, executiveOrdersEnabled);
 
-    console.log('FULL PROMPT:\n', test);
+    // console.log('FULL PROMPT:\n', test);
 
     return test;
 };
@@ -42,27 +43,31 @@ export const buildContext = (chunks: RetrievedChunk[], toolsEnabled = false): st
 export const streamAnswer = async (question: string, history: Message[], abortSignal?: AbortSignal) => {
     const { rewrittenQuery, chunks } = await fetchContext(question, history);
 
-    // rag lookup should be another tool
-    const toolsEnabled = dbEnabled();
+    const executiveOrdersEnabled = dbEnabled();
+    const { searchKnowledgeBase, found } = createSearchKnowledgeBase(chunks);
 
-    // RAG retrieval still runs first; the tools add structured lookups on top of the extracts
+    // RAG retrieval still runs first; the tools add extra and structured lookups on top of the extracts
     const result = streamText({
         model: openai(config.ANSWER_MODEL),
-        system: buildContext(chunks, toolsEnabled),
+        system: buildContext(chunks, executiveOrdersEnabled),
         messages: [...history, { role: "user", content: question }],
-        tools: toolsEnabled ? { searchExecutiveOrders } : undefined,
-        // tool call -> answer, with headroom for one retry
-        stopWhen: isStepCount(3),
+        tools: { searchKnowledgeBase, searchExecutiveOrders },
+        // activeTools rather than a conditional tools object, so the step callback keeps its typed tool calls
+        activeTools: executiveOrdersEnabled ? ["searchKnowledgeBase", "searchExecutiveOrders"] : ["searchKnowledgeBase"],
+        // KB search -> EO search -> answer, with headroom for one retry
+        stopWhen: isStepCount(4),
         onStepEnd: step => {
             for (const call of step.toolCalls) {
                 console.log("tool call: ", call.toolName, JSON.stringify(call.input));
             }
             for (const result of step.toolResults) {
-                console.log("tool result: ", result.toolName, JSON.stringify(result.output));
+                // truncated so knowledge base extracts don't flood the logs
+                console.log("tool result: ", result.toolName, JSON.stringify(result.output).slice(0, 500));
             }
         },
         abortSignal,
     });
 
-    return { rewrittenQuery, chunks, model: config.ANSWER_MODEL, textStream: result.textStream };
+    // toolChunks fills in as the stream runs; it's complete once textStream is drained
+    return { rewrittenQuery, chunks, toolChunks: found, model: config.ANSWER_MODEL, textStream: result.textStream };
 };

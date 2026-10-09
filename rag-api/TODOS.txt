@@ -1,5 +1,5 @@
 - add decision model to determine intent
-- add tools to lookup data (started: searchExecutiveOrders over govbot-postgres-db)
+- add tools to lookup data (started: searchExecutiveOrders over govbot-postgres-db, searchKnowledgeBase over Qdrant)
 - add reflection - looping, comparing against desired outcome
 - plan & execute
 - orchestration, try it out for 1 use case (master agent coordinates worker agents that do specific tasks)

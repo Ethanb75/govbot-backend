@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { getPool } from "../../db.js";
+import { getPool } from "../../../db.js";
 
 // One fixed, parameterized statement - the model only fills in values, never SQL.
 // COUNT(*) OVER () gives the full match count even when LIMIT cuts the rows, so "how many" questions work too.

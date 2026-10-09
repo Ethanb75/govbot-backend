@@ -67,9 +67,10 @@ export const buildRerankPrompt = (question: string, chunks: string[]): string =>
 // Clef takes typed questions rather than a system prompt; it returns a probability for each criterion
 export const INTENT_QUESTIONS = {
     // might not need for now...
-    stat: {
+    statTrial1: {
         type: "noul",
-        instructions: "Is this a question involving all of the data or a large subset of the data?"
+        // make tests for me!
+        instructions: "Is this a knowledge query?"
     },
     intent: {
         type: "choice",

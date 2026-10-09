@@ -2,7 +2,7 @@ import { isStepCount, streamText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { config } from "../config.js";
 import { dbEnabled } from "../db.js";
-import { searchExecutiveOrders } from "./tools/executive-orders.js";
+import { searchExecutiveOrders } from "./tools/executive-orders/meta-db.js";
 import { buildSystemPrompt } from "./prompts.js";
 import { rerank } from "./rerank.js";
 import { mergeChunks, retrieve } from "./retrieve.js";
@@ -32,12 +32,17 @@ export const buildContext = (chunks: RetrievedChunk[], toolsEnabled = false): st
         .map(chunk => `Extract from ${chunk.metadata.source}:\n${chunk.pageContent}`)
         .join("\n\n");
 
-    return buildSystemPrompt(context, toolsEnabled);
+    const test = buildSystemPrompt(context, toolsEnabled);
+
+    console.log('FULL PROMPT:\n', test);
+
+    return test;
 };
 
 export const streamAnswer = async (question: string, history: Message[], abortSignal?: AbortSignal) => {
     const { rewrittenQuery, chunks } = await fetchContext(question, history);
 
+    // rag lookup should be another tool
     const toolsEnabled = dbEnabled();
 
     // RAG retrieval still runs first; the tools add structured lookups on top of the extracts

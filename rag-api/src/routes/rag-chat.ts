@@ -40,10 +40,11 @@ export const ragChatRoutes = async (app: FastifyInstance) => {
         // Retrieval happens here, before any response is sent, so failures still get a normal error status
         // call clef to determine intent; not awaited for now, so it adds no latency and can't break the chat
         // maybe use intent to call extra tools. 
-        if (workersAiEnabled()) {
-            const intent = await detectImmediateIntent(question, history, abort.signal);
-            console.log("clef intent: ", JSON.stringify(intent, null, 2));
-        }
+        // TEST
+        // if (workersAiEnabled()) {
+        //     const intent = await detectImmediateIntent(question, history, abort.signal);
+        //     console.log("clef intent: ", JSON.stringify(intent, null, 2));
+        // }
 
         const { chunks, toolChunks, model, textStream } = await streamAnswer(question, history, abort.signal);
         const sources = toSources(chunks);

@@ -46,6 +46,8 @@ export const streamAnswer = async (question: string, history: Message[], abortSi
     const executiveOrdersEnabled = dbEnabled();
     const { searchKnowledgeBase, found } = createSearchKnowledgeBase(chunks);
 
+    console.log('HISTORY!!\n', history);
+
     // RAG retrieval still runs first; the tools add extra and structured lookups on top of the extracts
     const result = streamText({
         model: openai(config.ANSWER_MODEL),

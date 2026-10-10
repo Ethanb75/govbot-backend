@@ -1,0 +1,5 @@
+AWS!
+- start by using terraform to deploy 1 resource
+- ecr? ecs?
+- API Gateway?
+- 

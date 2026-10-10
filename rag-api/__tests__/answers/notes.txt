@@ -1,0 +1,7 @@
+// how well is the llm using the chunks?
+// answer correctness - measure against a known verified answer
+// answer relevency - does the model address my question? does fail to understand?
+// citation accuracy - for specific questions, supported cited claims / all cited claims
+// - For especially important claims, you might require every citation to be validated. (critical questions)
+// 
+

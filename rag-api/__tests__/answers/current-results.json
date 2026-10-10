@@ -1,0 +1,58 @@
+[
+  {
+    "id": "eval-001",
+    "question": "When was EO 07.14.26.02 signed?",
+    "category": "factual_lookup",
+    "answer": "The specific date when EO 07.14.26.02 was signed is not available in the provided extracts or the executive order database at this time.",
+    "cited": [
+      "07.14.26.02"
+    ],
+    "documentRecall": 0,
+    "citationGrounding": 0,
+    "correctness": 1,
+    "relevance": 4,
+    "reasoning": "The response addresses the question by discussing EO 07.14.26.02, but it does not answer when it was signed. It explicitly says the date is not available, which conflicts with the reference answer of July 14, 2026."
+  },
+  {
+    "id": "eval-002",
+    "question": "Summarize EO 09.10.26.01",
+    "category": "summarization",
+    "answer": "I was unable to retrieve information about EO 09.10.26.01. It may not be available in the current database. If you have specific details or a different order number, please let me know.",
+    "cited": [
+      "09.10.26.01"
+    ],
+    "documentRecall": 0,
+    "citationGrounding": 0,
+    "factCoverage": 0,
+    "relevance": 2,
+    "reasoning": "The response does not summarize the executive order; it says it could not retrieve information. It also omits all expected facts: 2001, 25, Patriot Day, and moment of silence."
+  },
+  {
+    "id": "eval-003",
+    "question": "How many wildfire related executive orders in 2026?",
+    "category": "citation",
+    "answer": "I couldn't retrieve the exact number of wildfire-related executive orders in 2026 due to a data access issue. However, based on the available information, there are at least five executive orders in 2026 related to wildfires, issued on different dates (April 22, May 5, May 12, June 12, and September 24).",
+    "cited": [],
+    "citationRecall": 0,
+    "citationPrecision": 0,
+    "relevance": 4,
+    "reasoning": "The response addresses the question by giving a count estimate for wildfire-related executive orders in 2026, but it also qualifies that it could not retrieve the exact number. It stays on topic, though the uncertainty slightly weakens directness."
+  },
+  {
+    "id": "eval-004",
+    "question": "which four orders reappoint regional representatives to the State Soil and Water Conservation Commission?",
+    "category": "citation",
+    "answer": "The four orders that reappoint regional representatives to the State Soil and Water Conservation Commission are:\n\n1. Executive Order 08.21.26.05, dated August 21, 2026, which reappointed Bob Martin as the Region 5 representative.\n2. Executive Order 08.21.26.04, also dated August 21, 2026, which reappointed James Waters as the Region 3 representative.\n3. Executive Order 08.21.26.03, dated August 21, 2026, which reappointed Edwin Ray Nix as the Region 2 representative.\n4. Executive Order 08.21.26.02, dated August 21, 2026, which reappointed Jason Winters as the Region 1 representative.\n\nLet me know if you need further information!",
+    "cited": [
+      "08.21.26.05",
+      "08.21.26.04",
+      "08.21.26.03",
+      "08.21.26.02"
+    ],
+    "citationRecall": 1,
+    "citationPrecision": 1,
+    "citationGrounding": 1,
+    "relevance": 5,
+    "reasoning": "The answer directly identifies four orders that reappoint regional representatives to the State Soil and Water Conservation Commission and stays on topic."
+  }
+]

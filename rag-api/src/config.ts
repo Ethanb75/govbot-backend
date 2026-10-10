@@ -12,6 +12,8 @@ const Config = z.object({
     RERANK_MODEL: z.string().default("gpt-4.1-nano"),
     // ANSWER_MODEL: z.string().default("gpt-5.4-mini"),
     ANSWER_MODEL: z.string().default("gpt-4.1-nano"),
+    // only used by the answer evals (__tests__/answers); stronger than the answer model so it can grade it
+    JUDGE_MODEL: z.string().default("gpt-5.4-mini"),
     // Workers AI, used for the intent check; optional so the service still starts without them
     CLOUDFLARE_WORKER_API_KEY: z.string().optional(),
     CLOUDFLARE_WORKER_ACCOUNT_ID: z.string().optional(),

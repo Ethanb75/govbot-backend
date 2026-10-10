@@ -1,0 +1,172 @@
+{
+  "tests": [
+    {"question": "What is the maximum gross vehicle weight allowed for five-axle vehicles on Georgia state roadways under the petroleum supply state of emergency?", "keywords": ["95,000", "weight-bearing axles", "outer bridge span"], "referenceAnswer": "Vehicles with five weight-bearing axles and an outer bridge span of at least 51 feet may not exceed a gross vehicle weight of 95,000 pounds, a maximum width of 10 feet, and an overall length of 100 feet on state-maintained roadways, excluding interstates.", "category": "direct_fact"},
+    {"question": "Which fuel taxes did the Governor suspend in the petroleum supply state of emergency, and under what legal authority?", "keywords": ["45-12-22", "48-9-3", "48-8-30", "Surface Transportation Board"], "referenceAnswer": "Under Code Section 45-12-22(b), the Governor suspended collection of the motor and diesel fuel taxes required by Code Section 48-9-3 during the state of emergency, subject to ratification by the General Assembly. Under Code Section 45-12-22(a), the Governor also suspended the Code Section 48-8-30 tax on fuel sold to contract or common carriers regulated by the United States Surface Transportation Board for their exclusive use.", "category": "spanning"},
+    {"question": "When does Georgia's state of emergency for petroleum supply disruptions take effect and when does it expire?", "keywords": ["September 29, 2026", "October 29, 2026", "thirty (30) days"], "referenceAnswer": "The order was signed on September 28, 2026, takes effect Tuesday, September 29, 2026, and is valid for 30 days, expiring Thursday, October 29, 2026 at 11:59 P.M. unless the Governor renews the State of Emergency.", "category": "temporal"},
+     {
+      "question": "Who was appointed to Georgia's State Board of Cosmetology and Barbers by Executive Order 07.17.26.05, and which county is he from?",
+      "keywords": [
+        "James Van Boxel, Jr.",
+        "Glynn County",
+        "State Board of Cosmetology and Barbers"
+      ],
+      "referenceAnswer": "James Van Boxel, Jr. of Glynn County, Georgia, was appointed as a member of the State Board of Cosmetology and Barbers.",
+      "category": "direct_fact"
+    },
+    {
+      "question": "Whom did James Van Boxel, Jr. succeed on the State Board of Cosmetology and Barbers in July 2026, and why was that seat vacant?",
+      "keywords": [
+        "Catherine Jones McWhirter",
+        "resigned"
+      ],
+      "referenceAnswer": "He succeeded Catherine Jones McWhirter, who resigned.",
+      "category": "direct_fact"
+    },
+    {
+      "question": "When was James Van Boxel, Jr.'s appointment order signed, and when does his term on the State Board of Cosmetology and Barbers expire?",
+      "keywords": [
+        "July 17, 2026",
+        "November 27, 2026"
+      ],
+      "referenceAnswer": "The appointment order was signed July 17, 2026, and his term of office expires November 27, 2026.",
+      "category": "temporal"
+    },
+    {
+      "question": "Which flags and locations are covered by Georgia's August 2026 order honoring 1st Lt. Tyler James Feehan?",
+      "keywords": [
+        "United States",
+        "State of Georgia",
+        "all state buildings and grounds",
+        "half-staff"
+      ],
+      "referenceAnswer": "The United States flag and the State of Georgia flag must be flown at half-staff on all state buildings and grounds.",
+      "category": "direct_fact"
+    },
+    {
+      "question": "When was Executive Order 08.03.26.01 signed, and on what day were flags to be lowered for 1st Lt. Tyler James Feehan?",
+      "keywords": [
+        "August 3, 2026",
+        "Friday, August 7, 2026",
+        "interment"
+      ],
+      "referenceAnswer": "The order was signed August 3, 2026. Flags were to be lowered on Friday, August 7, 2026, the day of his interment.",
+      "category": "temporal"
+    },
+    {
+      "question": "According to Georgia's executive order honoring 1st Lt. Tyler James Feehan, what posthumous promotion and forthcoming medals are mentioned, and where was he to be buried?",
+      "keywords": [
+        "Captain",
+        "Bronze Star",
+        "Purple Heart",
+        "Georgia National Cemetery",
+        "Canton"
+      ],
+      "referenceAnswer": "He was posthumously promoted to Captain and was to receive the Bronze Star and Purple Heart. He was to be buried at the Georgia National Cemetery in Canton.",
+      "category": "spanning"
+    },
+    {
+      "question": "Which Dublin City Board of Education members were suspended by Executive Order 08.17.26.01?",
+      "keywords": [
+        "Amanda Smith",
+        "John Bell",
+        "Jeff Davis",
+        "Joanna Glover",
+        "Peggy Johnson",
+        "James Lanier",
+        "Kenny Walters"
+      ],
+      "referenceAnswer": "The suspended members were Amanda Smith, John Bell, Jeff Davis, Joanna Glover, Peggy Johnson, James Lanier, and Kenny Walters.",
+      "category": "direct_fact"
+    },
+    {
+      "question": "What accreditation problem and State Board of Education proceedings led to the August 17, 2026 suspension of Dublin City Board of Education members?",
+      "keywords": [
+        "immediately preceding loss of accreditation",
+        "August 12, 2026",
+        "20-2-73(a)(1)(A)",
+        "all eligible members"
+      ],
+      "referenceAnswer": "The local board reported placement at the level immediately preceding loss of accreditation. Under Code Section 20-2-73(a)(1)(A), the State Board of Education held a hearing on August 12, 2026, and recommended suspension of all eligible members.",
+      "category": "spanning"
+    },
+    {
+      "question": "Who serves on the Dublin City Board of Education Nominating Committee created in August 2026, who chairs it, and what is its task?",
+      "keywords": [
+        "Matt Donaldson",
+        "Larry Walker",
+        "Matt Hatchett",
+        "Phil Best",
+        "Edwin May",
+        "temporary replacements"
+      ],
+      "referenceAnswer": "The committee consists of Matt Donaldson, Senator Larry Walker, Representative Matt Hatchett, Phil Best, and Edwin May. Donaldson chairs it. It nominates temporary replacements for the Governor to appoint to the local board under Code Section 20-2-73(a)(2).",
+      "category": "spanning"
+    },
+    {
+      "question": "Which University of Georgia building did Executive Order 09.16.26.04 authorize for demolition, and where is it located?",
+      "keywords": [
+        "Train Depot",
+        "105 Mitchell Street",
+        "Athens",
+        "Clarke County"
+      ],
+      "referenceAnswer": "The order authorizes demolition and removal of the Train Depot at 105 Mitchell Street in Athens, Clarke County, Georgia.",
+      "category": "direct_fact"
+    },
+    {
+      "question": "Who determined that the University of Georgia Train Depot should be removed, what was the reason, and which Board of Regents policy is cited?",
+      "keywords": [
+        "J. Frank Smith",
+        "Vice Chancellor for Real Estate and Facilities",
+        "9.8.2.3",
+        "advantageously used"
+      ],
+      "referenceAnswer": "J. Frank Smith, Vice Chancellor for Real Estate and Facilities, determined that the Train Depot could no longer be advantageously used by UGA or the University System of Georgia. The order cites Board of Regents Policy 9.8.2.3, DEMOLITION.",
+      "category": "spanning"
+    },
+    {
+      "question": "Under the September 16, 2026 Train Depot demolition order, who is authorized to carry out the work, how must building materials be removed, and how quickly should the work proceed?",
+      "keywords": [
+        "University of Georgia",
+        "Board of Regents",
+        "public works contract",
+        "expeditiously"
+      ],
+      "referenceAnswer": "Appropriate University of Georgia staff, acting with Board of Regents approval, may demolish the building and have all building materials removed by public works contract. Demolition and removal must proceed as expeditiously as possible.",
+      "category": "spanning"
+    },
+    {
+      "question": "What is the maximum aggregate principal amount for the Mercer University Series 2026 bonds in Executive Order 07.02.26.02, and which campus cities are covered?",
+      "keywords": [
+        "$155,000,000",
+        "Atlanta",
+        "Columbus",
+        "Macon"
+      ],
+      "referenceAnswer": "The maximum aggregate principal amount is $155,000,000. The covered Mercer campus cities are Atlanta, Columbus, and Macon, Georgia.",
+      "category": "direct_fact"
+    },
+    {
+      "question": "What are the application approval, public hearing, and executive order dates for the Mercer University Series 2026 bond issuance?",
+      "keywords": [
+        "May 27, 2026",
+        "June 15, 2026",
+        "July 2, 2026"
+      ],
+      "referenceAnswer": "The Authority approved the application on May 27, 2026; the public hearing was held June 15, 2026; and the Governor signed the executive order July 2, 2026.",
+      "category": "temporal"
+    },
+    {
+      "question": "What uses of the Mercer University Series 2026 bond proceeds are described, and what is the expressly limited purpose of the Governor's approval?",
+      "keywords": [
+        "financing or refinancing",
+        "Series 2015",
+        "issuance costs",
+        "147(f)",
+        "Internal Revenue Code"
+      ],
+      "referenceAnswer": "Proceeds may fund financing or refinancing of educational, academic, and recreational facilities, equipment, and infrastructure; refund all or part of the Mercer University Series 2015 bonds; and pay issuance costs, in any combination. The Governor's approval is solely to satisfy Section 147(f) of the Internal Revenue Code of 1986, as amended.",
+      "category": "spanning"
+    }
+  ]
+}

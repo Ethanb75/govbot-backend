@@ -31,7 +31,7 @@ Internet → knowledge-crawler (1:00 AM) → ./knowledge-base → knowledge-inge
 ### Running
 
 ```bash
-# in docker (normal operation) - see ../compose.yml
+# in docker (normal operation) - see ../ingest/compose.yml
 docker compose up -d knowledge-crawler
 docker compose logs knowledge-crawler
 
@@ -46,19 +46,19 @@ npm run crawl -- --year 2025
 # The rows land as pending; the next ingest run reconciles them to indexed without re-embedding.
 npm run crawl -- --backfill-db
 
-# on the VM
+# on the homelab VM (.132), which is deployed from the homelab repo
 cd /opt/knowledge-ingest
 sudo docker compose run --rm knowledge-crawler node dist/index.js --backfill-db
 ```
 
-The local defaults are `../knowledge-base` and `../crawler-state`, which are the real directories. Override them when experimenting.
+The local defaults are `../ingest/knowledge-base` and `../ingest/crawler-state`. In this repo, `../ingest/knowledge-base` holds only sample docs for local development, and crawler output written there is gitignored. The real corpus lives on the VM. Override the paths when experimenting.
 
 | Env var | Default | |
 | --- | --- | --- |
-| `KNOWLEDGE_BASE_PATH` | `../knowledge-base` | Where Markdown is written (must be writable) |
-| `CRAWLER_STATE_PATH` | `../crawler-state` | Per-source state files |
+| `KNOWLEDGE_BASE_PATH` | `../ingest/knowledge-base` | Where Markdown is written (must be writable) |
+| `CRAWLER_STATE_PATH` | `../ingest/crawler-state` | Per-source state files |
 | `CRAWL_TIMEOUT_MINUTES` | `30` | Hard stop for the whole run, across all sources |
-| `GOVBOT_DATABASE_URL` | unset (database disabled) | `govbot_ingest` connection string for govbot-postgres-db. Set by `../compose.yml` |
+| `GOVBOT_DATABASE_URL` | unset (database disabled) | `govbot_ingest` connection string for govbot-postgres-db. Set by `../ingest/compose.yml` |
 
 ## Adding a new source
 
@@ -195,7 +195,7 @@ Log with the same tags as the existing source (`[NEW]`, `[UPDATE]`, `[SKIP]`, `[
 
 ### 9. Dependencies
 
-- npm packages go in `crawler/package.json`. The crawler is a separate project from the ingest service.
+- npm packages go in `services/crawler/package.json` (`npm install <pkg> -w services/crawler` from the repo root). The crawler is its own workspace, separate from the ingest service.
 - System binaries go in the runtime stage's `apk add` line in `Dockerfile`. If the source can't work without a binary, check for it in `healthCheck()` in `src/index.ts`, as `checkOcrTools` does.
 
 ### 10. Test it

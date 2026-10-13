@@ -4,7 +4,7 @@ Answers questions from the `knowledge` Qdrant collection that `knowledge-ingest`
 
 ## Deployment
 
-Jenkins deploys it with `ansible/playbooks/deploy-rag-api.yml`. The playbook copies `compose.yml`, `.env` and the source into `/opt/rag-api` on the host, then rebuilds and starts the container with Docker Compose.
+The live deployment still runs from the `homelab` repo's copy of this service, not from this repo. There, Jenkins deploys it with `ansible/playbooks/deploy-rag-api.yml`. The playbook copies `compose.yml`, `.env` and the source into `/opt/rag-api` on the host, then rebuilds and starts the container with Docker Compose.
 
 ## Viewing logs
 

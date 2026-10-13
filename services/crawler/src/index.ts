@@ -7,8 +7,8 @@ import { checkOcrTools } from "./pdf.js";
 import { gaExecutiveOrders } from "./sources/ga-executive-orders.js";
 import { Source } from "./types.js";
 
-const KNOWLEDGE_BASE_PATH = process.env.KNOWLEDGE_BASE_PATH ?? "../knowledge-base";
-const CRAWLER_STATE_PATH = process.env.CRAWLER_STATE_PATH ?? "../crawler-state";
+const KNOWLEDGE_BASE_PATH = process.env.KNOWLEDGE_BASE_PATH ?? "../ingest/knowledge-base";
+const CRAWLER_STATE_PATH = process.env.CRAWLER_STATE_PATH ?? "../ingest/crawler-state";
 
 // Hard stop so a hanging government site can't keep the crawl running into the 3 AM ingest.
 const CRAWL_TIMEOUT_MINUTES = Number(process.env.CRAWL_TIMEOUT_MINUTES ?? 30);

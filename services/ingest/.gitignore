@@ -1,0 +1,16 @@
+dist
+
+# runtime ingest state, one per machine
+app-state
+
+# runtime crawler state, one per machine
+crawler-state
+
+# only the sample docs for local dev are tracked; crawler output written here
+# (georgia/ and any future source) stays local. The real corpus lives on the VM.
+knowledge-base/*
+!knowledge-base/.gitkeep
+!knowledge-base/company/
+!knowledge-base/contracts/
+!knowledge-base/employees/
+!knowledge-base/products/

@@ -1,0 +1,12 @@
+# images build from the repo root; keep the context to manifests and sources
+.git
+.env
+**/.env
+**/node_modules
+**/dist
+agent-plans
+db
+infra
+services/ingest/knowledge-base
+services/ingest/app-state
+services/ingest/crawler-state

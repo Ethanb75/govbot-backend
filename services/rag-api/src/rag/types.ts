@@ -3,7 +3,7 @@ export type Message = {
     content: string;
 };
 
-// Payload shape written by knowledge-ingest/src/qdrant.ts upsertChunks
+// Payload shape written by services/ingest/src/qdrant.ts upsertChunks
 export type ChunkPayload = {
     document: string;
     source: string;

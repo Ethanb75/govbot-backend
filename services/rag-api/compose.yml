@@ -3,7 +3,8 @@ services:
   # reached publicly only through the personal-web-app nginx /api/ proxy
   rag-api:
     build:
-      context: .
+      context: ../..
+      dockerfile: services/rag-api/Dockerfile
     restart: unless-stopped
 
     ports:

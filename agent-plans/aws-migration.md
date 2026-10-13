@@ -108,7 +108,7 @@ This repo (`Ethanb75/govbot-backend`) already exists with no commits. To bring t
 ### Phase 3 — manual deploy runbook (`DEPLOY.md`)
 Write each step as a copy-pasteable command so the later GitHub Actions workflows can mirror it one to one.
 1. **Log in:** `aws sso login` (or your profile's equivalent); `aws ecr get-login-password | docker login …`.
-2. **Build and push** each changed service: `docker buildx build --platform linux/arm64 -t <ecr>/<service>:<git-sha> --push services/<service>`.
+2. **Build and push** each changed service: `docker buildx build --platform linux/arm64 -t <ecr>/<service>:<git-sha> --push -f services/<service>/Dockerfile .` (images build from the repo root so they can include `packages/shared`).
 3. **Migrate** when `db/**` changed: `aws ecs run-task` with the `migrate` task (metadata and/or vectors), then `aws ecs wait tasks-stopped` and check the exit code and logs.
 4. **Roll out:** `terraform -chdir=infra apply -var image_tag=<git-sha>`, then `aws ecs wait services-stable` for rag-api.
 5. **Frontend** (from `homelab/personal-web-app`): `npm ci && npm run build` → `aws s3 sync <dist> s3://<site-bucket> --delete` → `aws cloudfront create-invalidation --paths '/*'`.

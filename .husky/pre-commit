@@ -1,0 +1,7 @@
+branch=$(git rev-parse --abbrev-ref HEAD)
+
+if [ "$branch" = "main" ] && git diff --cached --name-only --diff-filter=ACMR | grep -q '^services/rag-api/src/'; then
+  echo "services/rag-api/src changed on main, running eval..."
+  (cd services/rag-api && npm run test:retrieval -- --save && npm run test:answers -- --save ) || exit 1
+  git add services/rag-api/__tests__/*/current-results.json
+fi

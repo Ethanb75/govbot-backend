@@ -1,6 +1,8 @@
-# govbot-postgres-db
+# Metadata database (govbot-postgres-db)
 
 PostgreSQL 18 holding GovBot's structured executive order metadata and ingest state. Qdrant (`vector-db`) stays the search index; this database is the source of truth for which orders exist, which are indexed, and corpus statistics. 
+
+The VM, deploy, admin access and backup sections below describe the live homelab deployment, which still runs from the `homelab` repo's `govbot-postgres-db/` folder. The migrations and scripts here are the copies the AWS migration builds on.
 
 | Setting         | Value                          |
 | --------------- | ------------------------------ |
@@ -36,7 +38,7 @@ Passwords come from the Jenkins credentials `govbot-postgres-admin-password`, `g
 
 ## Writers
 
-`knowledge-crawler` and `knowledge-ingest` (both on `192.168.1.132`, as `govbot_ingest`) keep `executive_orders` current. See [`agent-plans/plan/crawler-ingest-db.md`](../agent-plans/plan/crawler-ingest-db.md).
+`knowledge-crawler` and `knowledge-ingest` (both on `192.168.1.132`, as `govbot_ingest`) keep `executive_orders` current. See [`agent-plans/plan/crawler-ingest-db.md`](../../agent-plans/plan/crawler-ingest-db.md).
 
 | Writer | Writes |
 | --- | --- |
@@ -49,7 +51,7 @@ Passwords come from the Jenkins credentials `govbot-postgres-admin-password`, `g
 - `indexed`: ingest has the current Markdown in Qdrant. Re-asserted on every ingest run, including for unchanged files.
 - `failed`: ingest couldn't index the current Markdown. The next run retries it.
 
-Both writers are fail-soft. If this database is down, they log `[DB-FAIL]`, carry on, and exit 1. The next run repairs the rows. To populate rows for orders crawled before the database existed, run the crawler with `--backfill-db` (see `knowledge-ingest/crawler/README.md`).
+Both writers are fail-soft. If this database is down, they log `[DB-FAIL]`, carry on, and exit 1. The next run repairs the rows. To populate rows for orders crawled before the database existed, run the crawler with `--backfill-db` (see [`services/crawler/README.md`](../../services/crawler/README.md)).
 
 ## Deploy
 
@@ -61,7 +63,7 @@ Each Jenkins deploy:
 4. Runs `scripts/migrate.sh`.
 5. Installs the backup cron job.
 
-Jenkins only runs the playbook when a file under `govbot-postgres-db/` changes.
+Jenkins only runs the playbook when a file under `govbot-postgres-db/` in `homelab` changes.
 
 ## Migrations
 

@@ -26,6 +26,10 @@ FROM node:24-alpine
 # poppler-utils (pdftoppm) and tesseract OCR the scanned PDFs that have no text layer
 RUN apk add --no-cache poppler-utils tesseract-ocr tesseract-ocr-data-eng
 
+# trust the RDS CA, so the database URL can use sslmode=verify-full (RDS forces TLS)
+RUN wget -qO /etc/ssl/certs/rds-global-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/rds-global-bundle.pem
+
 WORKDIR /app
 
 COPY package*.json ./

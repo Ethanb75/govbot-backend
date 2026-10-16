@@ -22,6 +22,10 @@ RUN npm run build -w packages/shared && npm run build -w services/rag-api
 
 FROM node:24-alpine
 
+# trust the RDS CA, so the database URLs can use sslmode=verify-full (RDS forces TLS)
+RUN wget -qO /etc/ssl/certs/rds-global-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/rds-global-bundle.pem
+
 WORKDIR /app
 
 COPY package*.json ./

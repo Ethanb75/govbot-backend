@@ -111,6 +111,14 @@ This repo (`Ethanb75/govbot-backend`) already exists with no commits. To bring t
 - **Edge:** CloudFront + OAC + VPC origin, ACM.
 - **Observability:** CloudWatch log groups with 14–30 day retention.
 - **Image tags:** task definitions take an `image_tag` variable (the git SHA), so a deploy is a push plus `terraform apply -var image_tag=<sha>`, and rollbacks are reapplies of an older SHA.
+- **Carried into Phase 3** (from the Phase 2 implementation; `infra/README.md` has the first bring-up end to end):
+  - One `image_tag` covers all four images and ECR tags are immutable. So every deploy must put all four repos under the new SHA. Build the changed ones, and retag the rest without pulling: `aws ecr batch-get-image` for the old tag's manifest → `aws ecr put-image --image-tag <new-sha>`.
+  - Migrate runs per database: task definitions `govbot-migrate-metadata` / `govbot-migrate-vectors`, network config from `terraform output -json run_task_network | jq -r .migrate`.
+  - The first bring-up order matters: ECR only (`-target`) → push → full apply with `rag_api_desired_count=0` → `scripts/put-secrets.sh` → migrate both databases → apply at count 1. Otherwise rag-api starts without secrets or a migrated vectors DB, and the circuit breaker fails its first deployment.
+  - RDS admin passwords are managed by RDS in Secrets Manager (not in SSM or state). Role passwords and connection URLs are SSM SecureStrings created by `put-secrets.sh`. The URLs use `sslmode=verify-full`, because the service images now ship the RDS CA bundle (`NODE_EXTRA_CA_CERTS`).
+  - The schedules are created `DISABLED` (`schedules_enabled = false`) until the Phase 4 restore, so a crawl can't write metadata rows that `pg_restore` then collides with.
+  - The custom domain is optional and takes two steps (`site_domain`, then `attach_site_domain` once the ACM CNAMEs are in DNS). Until then the site is on the `*.cloudfront.net` domain, which is what Phase 5 needs.
+- **Carried into Phase 4:** RDS is private, so `pg_restore` can't run from your machine directly. Options: a one-off task based on the migrate image, which has the PostgreSQL 18 client and the admin secret. It would need a task role that can read the dump from S3, and you should confirm `pg_restore` is in the alpine package. Or a temporary way in, such as an SSM port-forward through a short-lived task.
 
 ### Phase 3 — manual deploy runbook (`DEPLOY.md`)
 Write each step as a copy-pasteable command so the later GitHub Actions workflows can mirror it one to one.

@@ -1,24 +1,24 @@
 # knowledge-crawler
 
-Fetches public documents from government websites and writes them as Markdown into `knowledge-base/`, where the `knowledge-ingest` service picks them up and indexes them into Qdrant. The crawler knows nothing about chunking, embeddings or Qdrant. Its contract with ingest has two parts:
+Fetches public documents from government websites and writes them as Markdown into the knowledge base (a local directory, or the knowledge base S3 bucket on AWS), where the ingest service picks them up and indexes them into the vectors database. The crawler knows nothing about chunking or embeddings. Its contract with ingest has two parts:
 
 - **Markdown files.** It produces good `.md` files.
-- **govbot-postgres-db.** For executive orders, it UPSERTs a metadata row into `executive_orders` and sets `qdrant_status = 'pending'` whenever it rewrites the order's Markdown. Ingest moves the row to `indexed` or `failed`. The crawler also writes one `ingest_runs` row per source per run. See [`agent-plans/plan/crawler-ingest-db.md`](../../agent-plans/plan/crawler-ingest-db.md).
+- **The metadata database.** For executive orders, it UPSERTs a metadata row into `executive_orders` and sets `qdrant_status = 'pending'` whenever it rewrites the order's Markdown. Ingest moves the row to `indexed` or `failed`. The crawler also writes one `ingest_runs` row per source per run. See [`agent-plans/plan/crawler-ingest-db.md`](../../agent-plans/plan/crawler-ingest-db.md).
 
 ```text
-Internet → knowledge-crawler (1:00 AM) → ./knowledge-base → knowledge-ingest (3:00 AM) → Qdrant
+Internet → crawler (1:00 AM) → knowledge base (S3 / dir) → ingest (3:00 AM) → vectors DB
                     │                                               │
                     └──── executive_orders (pending) ───────────────┴──→ indexed / failed
 ```
 
 ## How it works
 
-- Runs daily at 1:00 AM `America/New_York` under Supercronic (see `crontab`), two hours ahead of ingest.
+- Runs once per scheduled task: on AWS, EventBridge Scheduler starts it daily at 1:00 AM `America/New_York`, two hours ahead of ingest. The process exits when the crawl is done, non-zero if anything failed.
 - `src/index.ts` runs every registered source in turn, under one shared hard timeout (`CRAWL_TIMEOUT_MINUTES`, default 30).
-- Each source scrapes its index page, downloads each document, converts it to Markdown and writes it under `knowledge-base/<jurisdiction>/<document-type>/`.
+- Each source scrapes its index page, downloads each document, converts it to Markdown and writes it under `<jurisdiction>/<document-type>/` in the knowledge base.
 - PDFs use their text layer when they have one and fall back to OCR (`pdftoppm` + `tesseract`) when they don't. Most Georgia executive orders are scans.
-- Each source keeps a state file at `crawler-state/<source-name>.json` so repeat runs skip unchanged documents (a conditional GET that gets a `304`, or a matching content hash).
-- Files are written to a `.tmp` sibling and renamed into place, so ingest never reads a half-written document.
+- Each source keeps a state file, `<source-name>.json` in the crawler state location, so repeat runs skip unchanged documents (a conditional GET that gets a `304`, or a matching content hash).
+- All reads and writes go through the storage helper in `packages/shared`, so ingest never reads a half-written document: locally a file is written to a `.tmp` sibling and renamed into place, and an S3 object only appears once its upload completes.
 - Documents are never deleted when they disappear from a website. They are only flagged `currentlyListed: false` in state, and in the row's `raw_metadata`.
 - Database writes are fail-soft. If `GOVBOT_DATABASE_URL` is unset, the database is skipped entirely. If it's set but the database is unreachable, or a single write fails, the crawler logs `[DB-FAIL]`, keeps writing Markdown, and exits 1. Every run re-asserts every listed order, so the next run repairs anything that was missed.
 
@@ -31,34 +31,30 @@ Internet → knowledge-crawler (1:00 AM) → ./knowledge-base → knowledge-inge
 ### Running
 
 ```bash
-# in docker (normal operation) - see ../ingest/compose.yml
-docker compose up -d knowledge-crawler
-docker compose logs knowledge-crawler
-
-# locally - needs poppler-utils and tesseract installed
-npm install
+# locally - needs poppler-utils and tesseract installed, and packages/shared built
+# (npm install && npm run build at the repo root)
 KNOWLEDGE_BASE_PATH=/tmp/kb CRAWLER_STATE_PATH=/tmp/crawler-state npm run dev
 
-# backfill a past year (the cron job only crawls the current year)
+# backfill a past year (the scheduled run only crawls the current year)
 npm run crawl -- --year 2025
 
-# write every order already in crawler-state to govbot-postgres-db, without crawling.
+# write every order already in crawler state to the metadata database, without crawling.
 # The rows land as pending; the next ingest run reconciles them to indexed without re-embedding.
 npm run crawl -- --backfill-db
-
-# on the homelab VM (.132), which is deployed from the homelab repo
-cd /opt/knowledge-ingest
-sudo docker compose run --rm knowledge-crawler node dist/index.js --backfill-db
 ```
 
-The local defaults are `../ingest/knowledge-base` and `../ingest/crawler-state`. In this repo, `../ingest/knowledge-base` holds only sample docs for local development, and crawler output written there is gitignored. The real corpus lives on the VM. Override the paths when experimenting.
+On AWS, run the same flags as a one-off crawler task (`aws ecs run-task` with a command override).
+
+The local defaults are `../ingest/knowledge-base` and `../ingest/crawler-state`. In this repo, `../ingest/knowledge-base` holds only sample docs for local development, and crawler output written there is gitignored. Override the paths when experimenting.
 
 | Env var | Default | |
 | --- | --- | --- |
-| `KNOWLEDGE_BASE_PATH` | `../ingest/knowledge-base` | Where Markdown is written (must be writable) |
-| `CRAWLER_STATE_PATH` | `../ingest/crawler-state` | Per-source state files |
+| `KNOWLEDGE_BASE_PATH` | `../ingest/knowledge-base` | Where Markdown is written: a directory, or `s3://<bucket>/knowledge-base` |
+| `CRAWLER_STATE_PATH` | `../ingest/crawler-state` | Per-source state files: a directory, or `s3://<bucket>/crawler-state` |
 | `CRAWL_TIMEOUT_MINUTES` | `30` | Hard stop for the whole run, across all sources |
-| `GOVBOT_DATABASE_URL` | unset (database disabled) | `govbot_ingest` connection string for govbot-postgres-db. Set by `../ingest/compose.yml` |
+| `GOVBOT_DATABASE_URL` | unset (database disabled) | `govbot_ingest` connection string for the metadata database |
+
+The environment is validated with zod at startup (`src/config.ts`). With an `s3://` location, region and credentials come from the usual AWS environment (the task role on Fargate, your profile locally).
 
 ## Adding a new source
 
@@ -82,9 +78,9 @@ export interface Source {
 import { Source, CrawlContext, CrawlResult } from "../types.js";
 
 const NAME = "ga-rules";                          // also the state file name
-const OUTPUT_DIR = join("georgia", "rules");      // relative to the knowledge base
+const OUTPUT_DIR = "georgia/rules";               // knowledge base key prefix, always '/'-separated
 
-const crawl = async ({ knowledgeBasePath, statePath, year, signal }: CrawlContext): Promise<CrawlResult> => {
+const crawl = async ({ knowledgeBase, state, year, signal }: CrawlContext): Promise<CrawlResult> => {
     // discover → fetch → convert → write → record state
 };
 
@@ -93,11 +89,11 @@ export const gaRules: Source = { name: NAME, crawl };
 
 The context gives you:
 
-- `knowledgeBasePath`: root of the knowledge base. Write only beneath `join(knowledgeBasePath, OUTPUT_DIR)`.
-- `statePath`: directory for your state file. Use ``join(statePath, `${NAME}.json`)`` and nothing else.
+- `knowledgeBase`: the knowledge base `Storage` (`packages/shared`). Write only keys beneath `` `${OUTPUT_DIR}/` ``.
+- `state`: the crawler state `Storage`. Use the key `` `${NAME}.json` `` and nothing else.
 - `year`: the year to crawl (`--year`, or the current year). Ignore it if the source isn't organised by year.
 - `signal`: aborts when the run hits its hard timeout. Pass it to every request and to `extractPdfText`.
-- `db`: govbot-postgres-db, or `undefined` when it's disabled or unreachable. Only sources that produce executive orders use it. Its methods never throw. They log `[DB-FAIL]` and count the failure themselves, so don't add the id to `result.failed`, which means "Markdown not written".
+- `db`: the metadata database, or `undefined` when it's disabled or unreachable. Only sources that produce executive orders use it. Its methods never throw. They log `[DB-FAIL]` and count the failure themselves, so don't add the id to `result.failed`, which means "Markdown not written".
 
 ### 2. Register it
 
@@ -120,7 +116,7 @@ Fetch the index page with `fetchWithTimeout(url, signal)` from `src/http.ts`. It
 
 ### 4. Choose stable file names
 
-Ingest keys its state on each file's path relative to the knowledge base, and uses the **parent directory name** as the document `type`. So:
+Ingest keys each document on its knowledge base key (its path relative to the root), and uses the **parent folder name** as the document `type`. So:
 
 - Name files after the document's official identifier (`09.24.26.03.md`), never after a title, date fetched, or position in a list. Renaming a file makes ingest delete its vectors and re-embed it as a new document.
 - Only `.md` files are ingested. Anything else in the knowledge base is ignored.
@@ -128,7 +124,7 @@ Ingest keys its state on each file's path relative to the knowledge base, and us
 
 ### 5. Write self-describing Markdown
 
-Always use `writeFileAtomic` from `src/files.ts`, never `writeFileSync` directly. Start every document with YAML frontmatter so it can be filtered in Qdrant later. Follow the existing keys where they apply:
+Always write through `knowledgeBase.write(key, markdown)`, never `node:fs` directly, so the same code works against a directory and S3. Start every document with YAML frontmatter so it can be filtered on later. Follow the existing keys where they apply:
 
 ```markdown
 ---
@@ -172,13 +168,13 @@ Define the state shape with `zod` so a corrupt or outdated file fails loudly on 
 For each discovered document:
 
 ```text
-known, listing unchanged, file on disk?
+known, listing unchanged, file in the knowledge base?
   ├── yes → conditional GET → 304 → skip
   │                         → 200 → same hash → skip
   └── otherwise → download → extract → write Markdown → save state
 ```
 
-Save state after **every** written document, not just at the end, so a timeout or crash doesn't redo finished work. Also check that the Markdown file still exists before skipping, so a deleted file gets regenerated.
+Save state after **every** written document, not just at the end, so a timeout or crash doesn't redo finished work. Also check that the Markdown file still exists (`knowledgeBase.exists`) before skipping, so a deleted file gets regenerated.
 
 ### 7. Never delete, only flag
 
@@ -191,7 +187,7 @@ When a document disappears from the website, set `currentlyListed: false` in sta
 - Check `signal.aborted` at the top of the loop. After the loop, count any unreached documents as failed, so the run exits non-zero and the summary reflects it.
 - Fetch one document at a time. These are small government servers, and the nightly window is hours long.
 
-Log with the same tags as the existing source (`[NEW]`, `[UPDATE]`, `[SKIP]`, `[WARN]`, `[FAIL]`) so `docker compose logs` reads consistently.
+Log with the same tags as the existing source (`[NEW]`, `[UPDATE]`, `[SKIP]`, `[WARN]`, `[FAIL]`) so the logs read consistently.
 
 ### 9. Dependencies
 
@@ -201,7 +197,7 @@ Log with the same tags as the existing source (`[NEW]`, `[UPDATE]`, `[SKIP]`, `[
 ### 10. Test it
 
 ```bash
-npm run build
+npm run build   # at the repo root, so packages/shared is built too
 KNOWLEDGE_BASE_PATH=/tmp/kb CRAWLER_STATE_PATH=/tmp/crawler-state npm run dev
 ```
 
@@ -217,9 +213,9 @@ Then:
 - [ ] `src/sources/<name>.ts` exports a `Source`, registered in `SOURCES`
 - [ ] Throws when discovery finds nothing
 - [ ] File names come from stable official identifiers
-- [ ] Writes via `writeFileAtomic`, with frontmatter
+- [ ] Writes via `knowledgeBase.write`, with frontmatter
 - [ ] Markdown is deterministic: identical input gives identical bytes
-- [ ] zod-validated state in `<statePath>/<name>.json`, saved after each document
+- [ ] zod-validated state in `<name>.json` in `state`, saved after each document
 - [ ] Unchanged documents are skipped, and missing files are regenerated
 - [ ] Never deletes, only sets `currentlyListed: false`
 - [ ] Per-document failures keep the previous state, and `signal` is respected

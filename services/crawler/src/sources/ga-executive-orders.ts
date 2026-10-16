@@ -1,16 +1,15 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import type { Storage } from "@govbot/shared";
 import * as cheerio from "cheerio";
 import { z } from "zod";
 
-import { createContentHash, writeFileAtomic } from "../files.js";
+import { createContentHash } from "../files.js";
 import { fetchWithTimeout } from "../http.js";
 import { extractPdfText, PdfText, TextExtraction } from "../pdf.js";
 import { CrawlContext, CrawlResult, ExecutiveOrderRecord, Source } from "../types.js";
 
 const NAME = "ga-executive-orders";
 const JURISDICTION = "Georgia";
-const OUTPUT_DIR = join("georgia", "executive-orders");
+const OUTPUT_DIR = "georgia/executive-orders";
 
 const sourceUrl = (year: number): string =>
     `https://gov.georgia.gov/executive-action/executive-orders/${year}`;
@@ -110,19 +109,20 @@ const SourceState = z.object({
 });
 type SourceState = z.infer<typeof SourceState>;
 
-const stateFile = (statePath: string): string => join(statePath, `${NAME}.json`);
+const STATE_KEY = `${NAME}.json`;
 
-const loadState = (statePath: string): SourceState => {
-    const file = stateFile(statePath);
-    if (!existsSync(file)) return { documents: {} };
+// knowledge base key of an order's Markdown
+const markdownKey = (id: string): string => `${OUTPUT_DIR}/${id}.md`;
 
-    return SourceState.parse(JSON.parse(readFileSync(file, "utf-8")));
+const loadState = async (storage: Storage): Promise<SourceState> => {
+    const json = await storage.read(STATE_KEY);
+    if (json === undefined) return { documents: {} };
+
+    return SourceState.parse(JSON.parse(json));
 };
 
-const saveState = (statePath: string, state: SourceState): void => {
-    mkdirSync(statePath, { recursive: true });
-    writeFileAtomic(stateFile(statePath), `${JSON.stringify(state, null, 2)}\n`);
-};
+const saveState = (storage: Storage, state: SourceState): Promise<void> =>
+    storage.write(STATE_KEY, `${JSON.stringify(state, null, 2)}\n`);
 
 const collapseWhitespace = (text: string): string => text.replace(/\s+/g, " ").trim();
 
@@ -176,9 +176,8 @@ ${listing.description || "_No description provided._"}
 ${text || "_No text could be extracted from the PDF._"}
 `;
 
-const crawl = async ({ knowledgeBasePath, statePath, year, signal, db }: CrawlContext): Promise<CrawlResult> => {
+const crawl = async ({ knowledgeBase, state: stateStorage, year, signal, db }: CrawlContext): Promise<CrawlResult> => {
     const pageUrl = sourceUrl(year);
-    const outputDir = join(knowledgeBasePath, OUTPUT_DIR);
 
     console.log(`Source: ${pageUrl}`);
 
@@ -189,7 +188,7 @@ const crawl = async ({ knowledgeBasePath, statePath, year, signal, db }: CrawlCo
         throw new Error(`no executive orders found on ${pageUrl} - has the page layout changed?`);
     }
 
-    const state = loadState(statePath);
+    const state = await loadState(stateStorage);
     const seenAt = new Date().toISOString();
 
     const result: CrawlResult = { discovered: listings.length, created: [], updated: [], unchanged: [], failed: [] };
@@ -212,7 +211,7 @@ const crawl = async ({ knowledgeBasePath, statePath, year, signal, db }: CrawlCo
 
         const { id } = listing;
         const previous: OrderState | undefined = state.documents[id];
-        const markdownPath = join(outputDir, `${id}.md`);
+        const documentKey = markdownKey(id);
 
         // Every listed order is re-asserted on every run, which keeps last_seen_at current and
         // repairs any write a previous run missed.
@@ -230,7 +229,7 @@ const crawl = async ({ knowledgeBasePath, statePath, year, signal, db }: CrawlCo
             previous !== undefined &&
             previous.pdfUrl === listing.pdfUrl &&
             previous.description === listing.description &&
-            existsSync(markdownPath);
+            (await knowledgeBase.exists(documentKey));
 
         try {
             const headers: Record<string, string> =
@@ -263,7 +262,7 @@ const crawl = async ({ knowledgeBasePath, statePath, year, signal, db }: CrawlCo
             }
 
             const retrievedAt = new Date().toISOString();
-            writeFileAtomic(markdownPath, toMarkdown(listing, pageUrl, retrievedAt, pdfText));
+            await knowledgeBase.write(documentKey, toMarkdown(listing, pageUrl, retrievedAt, pdfText));
 
             state.documents[id] = {
                 year,
@@ -275,7 +274,7 @@ const crawl = async ({ knowledgeBasePath, statePath, year, signal, db }: CrawlCo
                 lastSeenAt: seenAt,
                 currentlyListed: true,
             };
-            saveState(statePath, state);
+            await saveState(stateStorage, state);
             await upsert(lastModified, { contentHash, textExtraction: pdfText.extraction, markdownRewritten: true });
 
             if (previous) {
@@ -296,7 +295,7 @@ const crawl = async ({ knowledgeBasePath, statePath, year, signal, db }: CrawlCo
         }
     }
 
-    saveState(statePath, state);
+    await saveState(stateStorage, state);
 
     if (signal.aborted) {
         const reached = new Set([...result.created, ...result.updated, ...result.unchanged, ...result.failed]);
@@ -309,24 +308,24 @@ const crawl = async ({ knowledgeBasePath, statePath, year, signal, db }: CrawlCo
 };
 
 // text_extraction from a written order's frontmatter (see toMarkdown).
-const readTextExtraction = (markdownPath: string): TextExtraction | undefined => {
-    if (!existsSync(markdownPath)) return undefined;
+const readTextExtraction = async (knowledgeBase: Storage, id: string): Promise<TextExtraction | undefined> => {
+    const markdown = await knowledgeBase.read(markdownKey(id));
+    if (markdown === undefined) return undefined;
 
-    const value = /^text_extraction: (\S+)$/m.exec(readFileSync(markdownPath, "utf-8"))?.[1];
+    const value = /^text_extraction: (\S+)$/m.exec(markdown)?.[1];
     return value === "text_layer" || value === "ocr" || value === "none" ? value : undefined;
 };
 
 // Rows land as 'pending' (or keep their status); the next ingest run finds each file unchanged
 // and reconciles it to 'indexed' without re-embedding.
-const backfill: NonNullable<Source["backfill"]> = async ({ knowledgeBasePath, statePath, db }) => {
-    const state = loadState(statePath);
-    const outputDir = join(knowledgeBasePath, OUTPUT_DIR);
+const backfill: NonNullable<Source["backfill"]> = async ({ knowledgeBase, state: stateStorage, db }) => {
+    const state = await loadState(stateStorage);
 
     for (const [id, order] of Object.entries(state.documents)) {
         await db.upsertExecutiveOrder(
             toRecord(id, order, order.lastSeenAt, {
                 contentHash: order.contentHash,
-                textExtraction: readTextExtraction(join(outputDir, `${id}.md`)),
+                textExtraction: await readTextExtraction(knowledgeBase, id),
                 markdownRewritten: false,
             }),
         );

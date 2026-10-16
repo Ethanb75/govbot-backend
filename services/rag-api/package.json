@@ -1,7 +1,7 @@
 {
   "name": "rag-api",
   "version": "1.0.0",
-  "description": "HTTP API that answers questions from the knowledge collection in qdrant",
+  "description": "HTTP API that answers questions from the GovBot knowledge base (pgvector)",
   "license": "ISC",
   "author": "",
   "type": "module",
@@ -14,9 +14,9 @@
     "test:answers": "tsx __tests__/answers/quality.test.ts"
   },
   "dependencies": {
+    "@govbot/shared": "*",
     "@ai-sdk/openai": "^4.0.69",
     "@fastify/rate-limit": "^11.2.0",
-    "@qdrant/js-client-rest": "^1.19.0",
     "ai": "^7.0.105",
     "dotenv": "^17.4.2",
     "fastify": "^5.12.5",

@@ -94,6 +94,13 @@ This repo (`Ethanb75/govbot-backend`) already exists with no commits. To bring t
 - **Metadata DB:** the code is unchanged apart from the URL. Leave the `qdrant_*` column names for now and rename them in a later migration.
 - **Fixes:** findings 6–8. Swap trust-proxy handling for the CloudFront/ALB hops. Add a `migrate` entrypoint image (postgres client + `db/*/scripts`), with `migrate.sh` reading the migrations path from env.
 - **Dockerfiles:** keep the multi-stage builds; drop supercronic/crontab; build `linux/arm64` locally with `docker buildx`, or use X86_64 Fargate to skip cross-building.
+- **Carried into Phase 2** (from the Phase 1 implementation):
+  - Storage is selected per location: `KNOWLEDGE_BASE_PATH` / `CRAWLER_STATE_PATH` take a directory or `s3://<bucket>/<prefix>`. The crawler task role needs `s3:ListBucket` + `GetObject`/`PutObject` on both prefixes. Ingest needs `ListBucket` + `GetObject` on `knowledge-base/`. Without `ListBucket`, a missing object returns 403 instead of 404.
+  - New env vars: `VECTORS_DATABASE_URL` (ingest: `vectors_ingest`, rag-api: `vectors_app`), `TRUST_PROXY_HOPS=2` and `LOG_LEVEL` on rag-api. The migrate task needs the `PG*` variables, plus `GOVBOT_*_PASSWORD` / `VECTORS_*_PASSWORD`.
+  - The metadata RDS instance must use master user `govbot_db_admin` and database `govbot`, because migration 001 names both.
+  - RDS enforces TLS (`rds.force_ssl`). node-pg treats `sslmode=require` as `verify-full`, which fails without the RDS CA. Add the RDS CA bundle to the images and set `NODE_EXTRA_CA_CERTS`, or use `sslmode=no-verify`. psql in the migrate image is fine with `PGSSLMODE=require`.
+  - The migrate image builds with `db/` as the context: `docker buildx build -f db/Dockerfile db`. The command is `metadata` or `vectors`.
+  - Ingest refuses to run when the knowledge base lists zero documents but the index isn't empty. This guards against a wrong bucket or prefix wiping the vectors.
 
 ### Phase 2 — AWS infra (`infra/` Terraform)
 - **Applied by hand** from your machine with your AWS CLI profile (`terraform plan` → review → `terraform apply`).

@@ -1,0 +1,61 @@
+# Local development databases - never deployed. One pgvector Postgres 18 server holds both the
+# metadata (govbot) and vectors databases, migrated by the same image the ECS migrate task runs.
+# The knowledge base stays a local directory (the storage helper's local backend), so there's no
+# S3 stand-in here.
+#
+#   docker compose -f compose.dev.yml up -d
+#
+# then, in each service's .env:
+#   GOVBOT_DATABASE_URL=postgresql://govbot_ingest:dev@localhost:5432/govbot    (crawler, ingest)
+#   GOVBOT_DATABASE_URL=postgresql://govbot_app:dev@localhost:5432/govbot       (rag-api)
+#   VECTORS_DATABASE_URL=postgresql://vectors_ingest:dev@localhost:5432/vectors (ingest)
+#   VECTORS_DATABASE_URL=postgresql://vectors_app:dev@localhost:5432/vectors    (rag-api)
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg18
+    environment:
+      POSTGRES_USER: govbot_db_admin
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: govbot
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # postgres 18 images keep their data under /var/lib/postgresql/18/docker
+      - govbot-dev-postgres:/var/lib/postgresql
+      - ./db/dev/create-vectors-db.sql:/docker-entrypoint-initdb.d/create-vectors-db.sql:ro
+    healthcheck:
+      # -h forces TCP: during first-time init the entrypoint runs a socket-only temporary server
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U govbot_db_admin -d govbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  migrate-metadata:
+    build: ./db
+    command: ["metadata"]
+    environment: &migrate-env
+      PGHOST: postgres
+      PGUSER: govbot_db_admin
+      PGPASSWORD: dev
+      PGDATABASE: govbot
+      GOVBOT_INGEST_PASSWORD: dev
+      GOVBOT_APP_PASSWORD: dev
+      VECTORS_INGEST_PASSWORD: dev
+      VECTORS_APP_PASSWORD: dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  migrate-vectors:
+    build: ./db
+    command: ["vectors"]
+    environment:
+      <<: *migrate-env
+      PGDATABASE: vectors
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  govbot-dev-postgres:

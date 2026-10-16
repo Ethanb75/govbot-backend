@@ -1,13 +1,13 @@
 import "dotenv/config";
+import { EMBEDDING_ENV } from "@govbot/shared";
 import { z } from "zod";
 
 const Config = z.object({
     OPENAI_API_KEY: z.string().min(1),
-    QDRANT_URL: z.url(),
-    QDRANT_API_KEY: z.string().optional(),
-    QDRANT_COLLECTION_NAME: z.string().min(1),
-    EMBEDDING_MODEL: z.string().default("text-embedding-3-large"),
-    EMBEDDING_DIMENSIONS: z.coerce.number().int().positive().default(3072),
+    // vectors database (read-only vectors_app role) that ingest keeps up to date
+    VECTORS_DATABASE_URL: z.string().min(1),
+    // must match what ingest embedded the chunks with, so both read it from packages/shared
+    ...EMBEDDING_ENV,
     REWRITE_MODEL: z.string().default("gpt-4.1-nano"),
     RERANK_MODEL: z.string().default("gpt-4.1-nano"),
     // ANSWER_MODEL: z.string().default("gpt-5.4-mini"),
@@ -18,17 +18,21 @@ const Config = z.object({
     CLOUDFLARE_WORKER_API_KEY: z.string().optional(),
     CLOUDFLARE_WORKER_ACCOUNT_ID: z.string().optional(),
     INTENT_MODEL: z.string().default("@cf/cloudflare/clef"),
-    // govbot-postgres-db (read-only govbot_app role), used by the executive order tool; optional so local dev and the evals still start without it
+    // metadata database (read-only govbot_app role), used by the executive order tool; optional so local dev and the evals still start without it
     GOVBOT_DATABASE_URL: z.string().optional(),
     RETRIEVAL_K:z.coerce.number().int().positive().default(20),
     FINAL_K: z.coerce.number().int().positive().default(10),
     // chunks returned per searchKnowledgeBase call; about half the upfront context so tool results stay small
     TOOL_K: z.coerce.number().int().positive().default(5),
-    // IP of the reverse proxy allowed to set X-Forwarded-For; unset when running locally
-    TRUSTED_PROXY: z.string().optional(),
+    // Proxies in front of the service that append to X-Forwarded-For: 2 behind CloudFront -> ALB
+    // (the ALB, then the CloudFront edge). The client IP is read that many hops back, so the rate
+    // limit keys on the viewer and anything a client puts in the header itself is ignored. 0 locally.
+    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(0),
     RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(10),
     HOST: z.string().default("0.0.0.0"),
     PORT: z.coerce.number().int().positive().default(8090),
+    // debug also logs questions, answers and tool calls - keep it off in production
+    LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
 });
 export type Config = z.infer<typeof Config>;
 

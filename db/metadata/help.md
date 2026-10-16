@@ -1,9 +1,9 @@
 # Help
 
-SSH into service:
+Connect read-only as `govbot_app` (the local `compose.dev.yml` database shown; on AWS, use the RDS endpoint):
 
 ```sh
-sudo docker exec -it govbot-postgres-db psql -U govbot_app -d govbot
+psql postgresql://govbot_app:dev@localhost:5432/govbot
 ```
 
 ```sql

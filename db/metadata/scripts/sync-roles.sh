@@ -1,14 +1,14 @@
 #!/bin/sh
-# Creates the GovBot login roles and (re)sets their passwords from the container environment.
-# Runs inside the container on every deploy, before migrations, so rotating a password is a
-# Jenkins credential change plus a redeploy. Passwords are read inside psql with \getenv so they
-# never appear on a command line.
+# Creates the GovBot login roles and (re)sets their passwords from the environment. run.sh runs it
+# before the migrations on every migrate task, so rotating a password is an SSM parameter change
+# plus a migrate run. Passwords are read inside psql with \getenv so they never appear on a
+# command line. Connects with the libpq variables, as the database's admin user.
 set -eu
 
 : "${GOVBOT_INGEST_PASSWORD:?GOVBOT_INGEST_PASSWORD is not set}"
 : "${GOVBOT_APP_PASSWORD:?GOVBOT_APP_PASSWORD is not set}"
 
-psql -v ON_ERROR_STOP=1 --no-psqlrc --quiet --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<'SQL'
+psql -v ON_ERROR_STOP=1 --no-psqlrc --quiet <<'SQL'
 \getenv ingest_password GOVBOT_INGEST_PASSWORD
 \getenv app_password GOVBOT_APP_PASSWORD
 

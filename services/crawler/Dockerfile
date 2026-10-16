@@ -3,40 +3,46 @@ FROM node:24-alpine AS build
 
 WORKDIR /app
 
-# every workspace manifest is copied so npm ci sees the lockfile in sync, but only this one is installed
+# every workspace manifest is copied so npm ci sees the lockfile in sync, but only this service
+# and packages/shared are installed
+# - EXPLAIN
 COPY package*.json ./
+COPY packages/shared/package.json packages/shared/
 COPY services/rag-api/package.json services/rag-api/
 COPY services/crawler/package.json services/crawler/
 COPY services/ingest/package.json services/ingest/
-RUN npm ci --ignore-scripts -w services/crawler
+RUN npm ci --ignore-scripts -w packages/shared -w services/crawler
 
+COPY packages/shared/tsconfig.json packages/shared/
+COPY packages/shared/src packages/shared/src
 COPY services/crawler/tsconfig.json services/crawler/
 COPY services/crawler/src services/crawler/src
-RUN npm run build -w services/crawler
+# shared first: the service compiles against its type declarations
+RUN npm run build -w packages/shared && npm run build -w services/crawler
 
 
 FROM node:24-alpine
 
-# supercronic runs the schedule as PID 1 and sends job output to the container logs;
-# tzdata lets TZ pick the timezone the crontab is evaluated in;
 # poppler-utils (pdftoppm) and tesseract OCR the scanned PDFs that have no text layer
-RUN apk add --no-cache supercronic tzdata poppler-utils tesseract-ocr tesseract-ocr-data-eng
+RUN apk add --no-cache poppler-utils tesseract-ocr tesseract-ocr-data-eng
 
 WORKDIR /app
 
 COPY package*.json ./
+COPY packages/shared/package.json packages/shared/
 COPY services/rag-api/package.json services/rag-api/
 COPY services/crawler/package.json services/crawler/
 COPY services/ingest/package.json services/ingest/
-# npm ci -w still installs a workspace's devDependencies with --omit=dev, so drop them from the manifest first
-RUN npm pkg delete devDependencies -w services/crawler \
-    && npm ci --ignore-scripts --omit=dev -w services/crawler && npm cache clean --force
+# npm ci -w still installs a workspace's devDependencies with --omit=dev, so drop them from the manifests first
+RUN npm pkg delete devDependencies -w packages/shared -w services/crawler \
+    && npm ci --ignore-scripts --omit=dev -w packages/shared -w services/crawler && npm cache clean --force
 
+COPY --from=build /app/packages/shared/dist packages/shared/dist
 COPY --from=build /app/services/crawler/dist services/crawler/dist
-COPY services/crawler/crontab services/crawler/crontab
 
 WORKDIR /app/services/crawler
 
 USER node
 
-CMD ["supercronic", "/app/services/crawler/crontab"]
+# one run per scheduled ECS task (EventBridge Scheduler); the exit code is the run's result
+CMD ["node", "dist/index.js"]

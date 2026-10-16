@@ -18,14 +18,11 @@ export const ragChatRoutes = async (app: FastifyInstance) => {
     app.post("/v1/rag/chat", async (request, reply) => {
         // zod helper function
         const parsed = ChatRequest.safeParse(request.body);
-        console.log("parsed", parsed);
         if (!parsed.success) {
-            console.log("parsed", parsed);
             return reply.code(400).send({ error: "invalid request", issues: formatIssues(parsed.error) });
         }
 
         const { messages, stream } = parsed.data;
-        console.log(`messages: `, messages);
         const question = messages[messages.length - 1].content;
         const history = messages.slice(0, -1);
 
@@ -46,7 +43,7 @@ export const ragChatRoutes = async (app: FastifyInstance) => {
         //     console.log("clef intent: ", JSON.stringify(intent, null, 2));
         // }
 
-        const { chunks, toolChunks, model, textStream } = await streamAnswer(question, history, abort.signal);
+        const { chunks, toolChunks, model, textStream } = await streamAnswer(question, history, abort.signal, request.log);
         const sources = toSources(chunks);
 
         // if stream: false, combine the text into a string and send normally
@@ -77,8 +74,7 @@ export const ragChatRoutes = async (app: FastifyInstance) => {
                 answer += text;
                 reply.raw.write(sseEvent("delta", { text }));
             }
-            console.log('originalQuestion: ', question);
-            console.log('fully streamed answer: ', answer);
+            request.log.debug({ question, answer }, "answer streamed");
             // the client replaces sources on each event, so resend the merged list if the KB tool found more
             if (toolChunks.length) reply.raw.write(sseEvent("sources", toSources([...chunks, ...toolChunks])));
             reply.raw.write(sseEvent("done", {}));

@@ -1,13 +1,16 @@
+import type { Storage } from "@govbot/shared";
 import type { CrawlerDb } from "./db.js";
 
 export interface CrawlContext {
-    knowledgeBasePath: string;
-    statePath: string;
+    // where Markdown goes, for ingest to pick up
+    knowledgeBase: Storage;
+    // where each source keeps its own <name>.json state
+    state: Storage;
     // Year to crawl for sources organised by year; defaults to the current year.
     year: number;
     // Fires when the whole crawl hits its hard timeout.
     signal: AbortSignal;
-    // govbot-postgres-db, when GOVBOT_DATABASE_URL is set and reachable. Sources that don't
+    // the metadata database, when GOVBOT_DATABASE_URL is set and reachable. Sources that don't
     // produce executive orders ignore it.
     db?: CrawlerDb;
 }
@@ -28,7 +31,7 @@ export interface Source {
     backfill?: (context: CrawlContext & { db: CrawlerDb }) => Promise<number>;
 }
 
-// One row of govbot-postgres-db's executive_orders table, as the crawler sees it.
+// One row of the metadata database's executive_orders table, as the crawler sees it.
 export interface ExecutiveOrderRecord {
     source: string;
     sourceDocumentId: string;

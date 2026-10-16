@@ -1,0 +1,27 @@
+{
+  "name": "@govbot/shared",
+  "version": "1.0.0",
+  "description": "Config and helpers shared by the GovBot services: embedding model settings and knowledge base storage",
+  "private": true,
+  "license": "ISC",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^4.0.69",
+    "@aws-sdk/client-s3": "^3.1150.0",
+    "ai": "^7.0.105",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.3",
+    "typescript": "^7.0.2"
+  }
+}

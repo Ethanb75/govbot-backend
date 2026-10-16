@@ -2,10 +2,10 @@ import { generateText, Output } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import pLimit from "p-limit";
+import { config } from "./config.js";
 import { createContentHash } from "./documents.js";
 import { ChunkResult, DocumentChunk, KnowledgeDocument, LoadedDocument } from "./types.js";
 
-const CHUNKING_MODEL = "gpt-4.1-nano";
 const AVERAGE_CHUNK_SIZE = 100;
 const CHUNKING_CONCURRENCY = 10;
 
@@ -24,12 +24,14 @@ export const createChunksFromDocument = async (document: LoadedDocument): Promis
     const chatTemplate = `
         You take a document and you split the document into overlapping chunks for a KnowledgeBase.
 
-        The document is from the shared drive of a company called Insurellm.
+        The document is a public government record, such as a Georgia Governor's executive order or a state law, collected from an official government website.
         The document is of type: ${document["type"]}
         The document has been retrieved from: ${document["source"]}
 
-        A chatbot will use these chunks to answer questions about the company.
+        A chatbot will use these chunks to answer the public's questions about Georgia state government laws and executive orders.
+        Many documents were scanned and converted to text with OCR, so ignore page headers, footers, stamps and OCR noise, but never reword the substance.
         You should divide up the document as you see fit, being sure that the entire document is returned across the chunks - don't leave anything out.
+        Each headline and summary should name the document's identifiers where it has them - the executive order number or code section, the signing or effective date, and the governor or agency - so every chunk can be found and cited on its own.
         This document should probably be split into at least ${numChunks} chunks, but you can have more or less as appropriate, ensuring that there are individual chunks to answer specific questions.
         There should be overlap between the chunks as appropriate; typically about 25% overlap or about 50 words, so you have the same text in multiple chunks for best retrieval results.
 
@@ -44,7 +46,7 @@ export const createChunksFromDocument = async (document: LoadedDocument): Promis
     `;
 
     const { output } = await generateText({
-        model: openai(CHUNKING_MODEL),
+        model: openai(config.CHUNKING_MODEL),
         output: Output.object({
             schema: z.object({
                 chunks: z.array(z.object({

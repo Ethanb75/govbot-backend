@@ -1,29 +1,40 @@
+import { createEmbedder } from "@govbot/shared";
 import { config } from "../config.js";
-import { embedQuery } from "../embeddings.js";
-import { qdrant } from "../qdrant.js";
-import { ChunkPayload, RetrievedChunk } from "./types.js";
+import { getVectorsPool } from "../vectors.js";
+import { RetrievedChunk } from "./types.js";
 
-// add a function to grab stats about qdrant? maybe then move meta to a different db/service?
-// add an interface for vector db
+const { embedQuery } = createEmbedder(config);
+
+// Nearest chunks by cosine distance, served by the HNSW index on chunks.embedding. The score is
+// cosine similarity (1 - distance), the same scale Qdrant reported, so higher is closer.
+const NEAREST_CHUNKS_SQL = `
+    SELECT id, content, metadata, 1 - (embedding <=> $1::halfvec) AS score
+    FROM chunks
+    ORDER BY embedding <=> $1::halfvec
+    LIMIT $2
+`;
+
+type ChunkRow = {
+    id: string;
+    content: string;
+    metadata: RetrievedChunk["metadata"];
+    score: number;
+};
 
 export const retrieve = async (query: string): Promise<RetrievedChunk[]> => {
     const embedding = await embedQuery(query);
 
-    const results = await qdrant.query(config.QDRANT_COLLECTION_NAME, {
-        query: embedding,
-        limit: config.RETRIEVAL_K,
-        with_payload: true,
-    });
+    const { rows } = await getVectorsPool().query<ChunkRow>(NEAREST_CHUNKS_SQL, [
+        `[${embedding.join(",")}]`,
+        config.RETRIEVAL_K,
+    ]);
 
-    return results.points.map(point => {
-        const payload = point.payload as ChunkPayload;
-        return {
-            id: point.id,
-            score: point.score,
-            pageContent: payload.document,
-            metadata: { source: payload.source, type: payload.type, contentHash: payload.contentHash },
-        };
-    });
+    return rows.map(row => ({
+        id: row.id,
+        score: Number(row.score),
+        pageContent: row.content,
+        metadata: { source: row.metadata.source, type: row.metadata.type, contentHash: row.metadata.contentHash },
+    }));
 };
 
 // Keeps the first occurrence of each point, so earlier lists win on ordering and score

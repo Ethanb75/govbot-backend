@@ -1,32 +1,43 @@
 # rag-api
 
-Answers questions from the `knowledge` Qdrant collection that `knowledge-ingest` keeps up to date. It runs on `192.168.1.133:8090` and is reached publicly only through the `personal-web-app` nginx `/api/` proxy.
+Answers questions about Georgia laws and executive orders from the knowledge base that ingest keeps up to date. Retrieval is a cosine nearest-neighbour search over the `chunks` table in the vectors database (pgvector, see [`db/vectors`](../../db/vectors/migrations/001_chunks.sql)). The executive order tool reads the metadata database.
 
-## Deployment
+On AWS it runs as an ECS Fargate service behind an internal ALB, which CloudFront reaches as `/api/*` (CloudFront strips the `/api` prefix). The live homelab deployment still runs from the `homelab` repo's copy of this service, which uses Qdrant; its deploy and log docs live there.
 
-The live deployment still runs from the `homelab` repo's copy of this service, not from this repo. There, Jenkins deploys it with `ansible/playbooks/deploy-rag-api.yml`. The playbook copies `compose.yml`, `.env` and the source into `/opt/rag-api` on the host, then rebuilds and starts the container with Docker Compose.
+## Endpoints
 
-## Viewing logs
+| Route | |
+| --- | --- |
+| `POST /v1/rag/chat` | `{ messages, stream }`. With `stream: true` it answers as SSE: `model`, `sources`, `delta`…, `sources` again if the knowledge base tool found more, then `done` (or `error`) |
+| `GET /health/live` | process is up |
+| `GET /health/ready` | the vectors database answers and has been migrated. The ALB health check. Never calls OpenAI |
 
-The app logs to stdout (for example the `clef intent:` and `sources:` lines in `src/routes/rag-chat.ts`), so the logs are the container logs.
-
-```bash
-# ssh in, then follow the logs
-ssh deployer@192.168.1.133
-cd /opt/rag-api
-sudo docker compose logs -f rag-api
-
-# or in one command from your machine
-ssh -t deployer@192.168.1.133 'cd /opt/rag-api && sudo docker compose logs -f --tail=100 rag-api'
-
-# only the intent output
-sudo docker compose logs -f rag-api | grep -A20 "clef intent"
-```
-
-If `docker compose` isn't found, use `docker-compose`, since the playbook installs the apt `docker-compose` package. You can also skip Compose:
+## Running locally
 
 ```bash
-sudo docker logs -f $(sudo docker ps -qf name=rag-api)
+# at the repo root: install and build packages/shared
+npm install && npm run build
+
+# local databases (pgvector), see compose.dev.yml for the connection strings
+docker compose -f compose.dev.yml up -d
+
+cp services/rag-api/.env.example services/rag-api/.env   # then fill it in
+npm run dev -w services/rag-api
 ```
 
-The `clef intent:` line only prints when `CLOUDFLARE_WORKER_API_KEY` and `CLOUDFLARE_WORKER_ACCOUNT_ID` both reach the container. For that, they must be listed under `environment:` in `compose.yml` and written into the deployed `.env` by the `Jenkinsfile`.
+## Configuration
+
+Validated with zod at startup (`src/config.ts`); see `.env.example` for every variable. The ones that change between environments:
+
+| Env var | |
+| --- | --- |
+| `OPENAI_API_KEY` | required |
+| `VECTORS_DATABASE_URL` | required. `vectors_app` (read-only) connection string |
+| `GOVBOT_DATABASE_URL` | optional. `govbot_app` connection string; without it the executive order tool is turned off |
+| `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` | shared with ingest through `packages/shared`; must match what the chunks were embedded with |
+| `TRUST_PROXY_HOPS` | `2` behind CloudFront → ALB, `0` locally. The rate limit keys on the client IP that many hops back in `X-Forwarded-For` |
+| `LOG_LEVEL` | `info` by default. `debug` also logs questions, answers and tool calls, so keep it off in production |
+
+## Evals
+
+`npm run test:retrieval` and `npm run test:answers` run against whatever `VECTORS_DATABASE_URL` points at and write `__tests__/*/current-results.json`. The husky pre-commit hook runs both on `main` when `src/` changes, so committing there needs a populated vectors database.

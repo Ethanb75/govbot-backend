@@ -1,11 +1,15 @@
 #!/bin/sh
-# Applies /migrations/*.sql in filename order, each exactly once and in its own transaction,
-# recording what ran in schema_migrations. Runs inside the container on every deploy.
+# Applies $MIGRATIONS_DIR/*.sql in filename order, each exactly once and in its own transaction,
+# recording what ran in schema_migrations. Shared by every database under db/; run.sh points it at
+# one database's migrations. Connects with the standard libpq variables (PGHOST, PGPORT,
+# PGDATABASE, PGUSER, PGPASSWORD, PGSSLMODE) as the database's admin user.
 # Migrations must never be edited once applied - add a new numbered file instead.
 set -eu
 
+: "${MIGRATIONS_DIR:?MIGRATIONS_DIR is not set}"
+
 psql_admin() {
-    psql -v ON_ERROR_STOP=1 --no-psqlrc --quiet --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" "$@"
+    psql -v ON_ERROR_STOP=1 --no-psqlrc --quiet "$@"
 }
 
 psql_admin <<'SQL'
@@ -17,7 +21,7 @@ SQL
 
 applied=0
 
-for file in /migrations/*.sql; do
+for file in "$MIGRATIONS_DIR"/*.sql; do
     [ -e "$file" ] || continue
     version=$(basename "$file" .sql)
 

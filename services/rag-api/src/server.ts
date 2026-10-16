@@ -9,11 +9,11 @@ import { ragChatRoutes } from "./routes/rag-chat.js";
 // TODO - 1 big function! wrap in default err handling if uncaught error
 
 const app = Fastify({
-    logger: true,
+    logger: { level: config.LOG_LEVEL },
     // MAX_MESSAGES * MAX_MESSAGE_LENGTH plus room for JSON overhead
     bodyLimit: 128 * 1024,
-    // only trust X-Forwarded-For from the nginx proxy, so clients can't spoof their IP past the rate limit
-    trustProxy: config.TRUSTED_PROXY ?? false,
+    // read the client IP TRUST_PROXY_HOPS back in X-Forwarded-For, so clients can't spoof their IP past the rate limit
+    trustProxy: config.TRUST_PROXY_HOPS > 0 ? (_address, hop) => hop < config.TRUST_PROXY_HOPS : false,
 });
 
 
@@ -22,7 +22,7 @@ await app.register(rateLimit, {
     timeWindow: "1 minute",
 });
 
-// Don't leak upstream (OpenAI / Qdrant) error details to the public
+// Don't leak upstream (OpenAI / Postgres) error details to the public
 app.setErrorHandler((error: { statusCode?: number; message: string }, request, reply) => {
     // AI SDK errors carry the upstream status code (e.g. 401 for a bad key), which is ours to hide
     const statusCode = AISDKError.isInstance(error) ? 502 : (error.statusCode ?? 500);

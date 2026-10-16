@@ -1,3 +1,4 @@
+import type { FastifyBaseLogger } from "fastify";
 import { isStepCount, streamText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { config } from "../config.js";
@@ -33,20 +34,20 @@ export const buildContext = (chunks: RetrievedChunk[], executiveOrdersEnabled = 
         .map(chunk => `Extract from ${chunk.metadata.source}:\n${chunk.pageContent}`)
         .join("\n\n");
 
-    const test = buildSystemPrompt(context, executiveOrdersEnabled);
-
-    // console.log('FULL PROMPT:\n', test);
-
-    return test;
+    return buildSystemPrompt(context, executiveOrdersEnabled);
 };
 
-export const streamAnswer = async (question: string, history: Message[], abortSignal?: AbortSignal) => {
+// log: the request's logger. Tool calls carry user text, so they're only logged at debug level.
+export const streamAnswer = async (
+    question: string,
+    history: Message[],
+    abortSignal?: AbortSignal,
+    log?: FastifyBaseLogger,
+) => {
     const { rewrittenQuery, chunks } = await fetchContext(question, history);
 
     const executiveOrdersEnabled = dbEnabled();
     const { searchKnowledgeBase, found } = createSearchKnowledgeBase(chunks);
-
-    console.log('HISTORY!!\n', history);
 
     // RAG retrieval still runs first; the tools add extra and structured lookups on top of the extracts
     const result = streamText({
@@ -60,11 +61,11 @@ export const streamAnswer = async (question: string, history: Message[], abortSi
         stopWhen: isStepCount(4),
         onStepEnd: step => {
             for (const call of step.toolCalls) {
-                console.log("tool call: ", call.toolName, JSON.stringify(call.input));
+                log?.debug({ tool: call.toolName, input: call.input }, "tool call");
             }
             for (const result of step.toolResults) {
                 // truncated so knowledge base extracts don't flood the logs
-                console.log("tool result: ", result.toolName, JSON.stringify(result.output).slice(0, 500));
+                log?.debug({ tool: result.toolName, output: JSON.stringify(result.output).slice(0, 500) }, "tool result");
             }
         },
         abortSignal,

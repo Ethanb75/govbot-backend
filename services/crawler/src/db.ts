@@ -1,5 +1,6 @@
 import pg from "pg";
 
+import { config } from "./config.js";
 import { CrawlResult, ExecutiveOrderRecord } from "./types.js";
 
 // Writes are fail-soft: each method logs [DB-FAIL] and counts the failure instead of throwing, so
@@ -31,7 +32,8 @@ const UPSERT_EXECUTIVE_ORDER = `
         last_seen_at  = EXCLUDED.last_seen_at,
         qdrant_status = CASE WHEN $13::boolean THEN 'pending' ELSE executive_orders.qdrant_status END`;
 
-// Safe because supercronic never overlaps runs: a 'running' row at start-up belongs to a killed run.
+// Safe because runs never overlap (one scheduled task a night, finished well before the next):
+// a 'running' row at start-up belongs to a killed run.
 const CLOSE_ABANDONED_RUNS = `
     UPDATE ingest_runs SET status = 'failed', finished_at = now(), error_message = 'abandoned'
     WHERE source = $1 AND status = 'running'`;
@@ -49,7 +51,7 @@ export const describeDatabaseUrl = (url: string): string => {
 // undefined when GOVBOT_DATABASE_URL is unset (local dev) or the database is unreachable. The
 // crawl carries on either way; an unreachable database fails the run.
 export const connectDb = async (): Promise<CrawlerDb | undefined> => {
-    const url = process.env.GOVBOT_DATABASE_URL;
+    const url = config.GOVBOT_DATABASE_URL;
     if (!url) return undefined;
 
     const pool = new pg.Pool({

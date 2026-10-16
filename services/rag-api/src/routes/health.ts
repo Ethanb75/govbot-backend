@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { collectionExists } from "../qdrant.js";
+import { chunksTableExists } from "../vectors.js";
 
 export const healthRoutes = async (app: FastifyInstance) => {
     app.get("/health/live", { config: { rateLimit: false } }, async () => ({ status: "ok" }));
@@ -8,12 +8,12 @@ export const healthRoutes = async (app: FastifyInstance) => {
     // deliberately never touches OpenAI so health checks cost nothing
     app.get("/health/ready", { config: { rateLimit: false } }, async (request, reply) => {
         try {
-            if (!(await collectionExists())) {
-                return reply.code(503).send({ status: "unavailable", reason: "qdrant collection not found" });
+            if (!(await chunksTableExists())) {
+                return reply.code(503).send({ status: "unavailable", reason: "vectors database not migrated" });
             }
         } catch (error) {
-            request.log.warn({ err: error }, "qdrant readiness check failed");
-            return reply.code(503).send({ status: "unavailable", reason: "qdrant unreachable" });
+            request.log.warn({ err: error }, "vectors database readiness check failed");
+            return reply.code(503).send({ status: "unavailable", reason: "vectors database unreachable" });
         }
 
         return { status: "ok" };

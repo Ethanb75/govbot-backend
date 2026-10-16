@@ -1,24 +1,21 @@
-import "dotenv/config";
-import { accessSync, constants, existsSync, mkdirSync } from "node:fs";
 import { parseArgs } from "node:util";
+import { createStorage } from "@govbot/shared";
 
+import { config } from "./config.js";
 import { connectDb, CrawlerDb, describeDatabaseUrl } from "./db.js";
 import { checkOcrTools } from "./pdf.js";
 import { gaExecutiveOrders } from "./sources/ga-executive-orders.js";
 import { Source } from "./types.js";
 
-const KNOWLEDGE_BASE_PATH = process.env.KNOWLEDGE_BASE_PATH ?? "../ingest/knowledge-base";
-const CRAWLER_STATE_PATH = process.env.CRAWLER_STATE_PATH ?? "../ingest/crawler-state";
-
-// Hard stop so a hanging government site can't keep the crawl running into the 3 AM ingest.
-const CRAWL_TIMEOUT_MINUTES = Number(process.env.CRAWL_TIMEOUT_MINUTES ?? 30);
+const knowledgeBase = createStorage(config.KNOWLEDGE_BASE_PATH);
+const state = createStorage(config.CRAWLER_STATE_PATH);
 
 const SOURCES: Source[] = [gaExecutiveOrders];
 
 const summaryRow = (label: string, value: number | string): string =>
     `${`${label}:`.padEnd(22)}${String(value).padStart(6)}`;
 
-// `npm run crawl -- --year 2025` backfills a past year; the cron job crawls the current year.
+// `npm run crawl -- --year 2025` backfills a past year; the scheduled run crawls the current year.
 // `npm run crawl -- --backfill-db` writes every order already in state to the database, no crawling.
 const parseCliArgs = (): { year: number; backfillDb: boolean } => {
     const { values } = parseArgs({
@@ -35,13 +32,8 @@ const parseCliArgs = (): { year: number; backfillDb: boolean } => {
 };
 
 const healthCheck = async (backfillDb: boolean): Promise<CrawlerDb | undefined> => {
-    if (!existsSync(KNOWLEDGE_BASE_PATH)) {
-        throw new Error(`knowledge base not found at ${KNOWLEDGE_BASE_PATH}`);
-    }
-    accessSync(KNOWLEDGE_BASE_PATH, constants.W_OK);
-
-    mkdirSync(CRAWLER_STATE_PATH, { recursive: true });
-    accessSync(CRAWLER_STATE_PATH, constants.W_OK);
+    await knowledgeBase.check("write");
+    await state.check("write");
 
     // a backfill only reads state, so it never OCRs anything
     if (!backfillDb) await checkOcrTools();
@@ -50,7 +42,7 @@ const healthCheck = async (backfillDb: boolean): Promise<CrawlerDb | undefined> 
 };
 
 const crawlSources = async (year: number, db: CrawlerDb | undefined): Promise<string[]> => {
-    const signal = AbortSignal.timeout(CRAWL_TIMEOUT_MINUTES * 60_000);
+    const signal = AbortSignal.timeout(config.CRAWL_TIMEOUT_MINUTES * 60_000);
     const failedSources: string[] = [];
 
     for (const source of SOURCES) {
@@ -59,8 +51,8 @@ const crawlSources = async (year: number, db: CrawlerDb | undefined): Promise<st
 
         try {
             const result = await source.crawl({
-                knowledgeBasePath: KNOWLEDGE_BASE_PATH,
-                statePath: CRAWLER_STATE_PATH,
+                knowledgeBase,
+                state,
                 year,
                 signal,
                 db,
@@ -94,10 +86,10 @@ const backfillSources = async (year: number, db: CrawlerDb): Promise<void> => {
         if (!source.backfill) continue;
 
         const written = await source.backfill({
-            knowledgeBasePath: KNOWLEDGE_BASE_PATH,
-            statePath: CRAWLER_STATE_PATH,
+            knowledgeBase,
+            state,
             year,
-            signal: AbortSignal.timeout(CRAWL_TIMEOUT_MINUTES * 60_000),
+            signal: AbortSignal.timeout(config.CRAWL_TIMEOUT_MINUTES * 60_000),
             db,
         });
         console.log(`[backfill] ${source.name} - ${written} orders`);
@@ -107,11 +99,11 @@ const backfillSources = async (year: number, db: CrawlerDb): Promise<void> => {
 const main = async (): Promise<void> => {
     const startedAt = performance.now();
     const { year, backfillDb } = parseCliArgs();
-    const databaseUrl = process.env.GOVBOT_DATABASE_URL;
+    const databaseUrl = config.GOVBOT_DATABASE_URL;
 
     console.log(backfillDb ? "Knowledge crawl started (database backfill only)" : "Knowledge crawl started");
-    console.log(`Knowledge base: ${KNOWLEDGE_BASE_PATH}`);
-    console.log(`State:          ${CRAWLER_STATE_PATH}`);
+    console.log(`Knowledge base: ${knowledgeBase.location}`);
+    console.log(`State:          ${state.location}`);
     console.log(`Database:       ${databaseUrl ? describeDatabaseUrl(databaseUrl) : "disabled (GOVBOT_DATABASE_URL not set)"}`);
     console.log(`Year:           ${year}\n`);
 

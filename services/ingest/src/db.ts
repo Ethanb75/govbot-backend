@@ -1,10 +1,11 @@
 import pg from "pg";
 
+import { config } from "./config.js";
 import { ExecutiveOrderRef } from "./types.js";
 
 // Ingest only moves executive_orders rows out of 'pending' (the crawler creates them and moves them
 // back). Writes are fail-soft: each method logs [DB-FAIL] and counts the failure instead of
-// throwing, so Postgres never holds up Qdrant. Every run re-asserts every order, so a missed
+// throwing, so the metadata database never holds up indexing. Every run re-asserts every order, so a missed
 // write is corrected next run.
 export interface IngestDb {
     markIndexed: (
@@ -33,7 +34,7 @@ export const describeDatabaseUrl = (url: string): string => {
 // undefined when GOVBOT_DATABASE_URL is unset (local dev) or the database is unreachable. Ingest
 // carries on either way; an unreachable database fails the run.
 export const connectDb = async (): Promise<IngestDb | undefined> => {
-    const url = process.env.GOVBOT_DATABASE_URL;
+    const url = config.GOVBOT_DATABASE_URL;
     if (!url) return undefined;
 
     const pool = new pg.Pool({
